@@ -51,8 +51,20 @@ class GetAddNumFeatureBlock(AbstractBaseBlock):
         out_df = pd.DataFrame()
         out_df = self.encoder.fit_transform(input_df)
         return out_df
+    
+class LabelEncodingBlock(AbstractBaseBlock):
+  def __init__(self, cols):
+    self.cols = cols
 
+  def fit(self, input_df, y=None):
+    self.encoder = ce.OrdinalEncoder()
+    return self.transform(input_df)
 
+  def transform(self, input_df):
+    out_df = pd.DataFrame()
+    out_df = self.encoder.fit_transform(input_df[self.cols]).add_prefix("LE_")
+    return out_df
+    
 class CountEncodingBlock(AbstractBaseBlock):
     
     """
@@ -87,6 +99,12 @@ class OneHotEncodingBlock(AbstractBaseBlock):
         out_df = self.encoder.fit_transform(input_df[self.cols]).add_prefix("OHE_")
         return out_df
     
+def max_min(x):
+    return x.max() - x.min()
+
+def q75_q25(x):
+    return x.quantile(0.75) - x.quantile(0.25)
+    
 class AggregationBlock(AbstractBaseBlock):
     """
     集約変数を作成するブロック
@@ -96,7 +114,7 @@ class AggregationBlock(AbstractBaseBlock):
       group_values:集約を行う対象の変数
       agg_methods:どのような方法で集約するか. デフォルトはmax, min, meanの三つ
     """
-    def __init__(self, group_key, group_values, agg_methods=["max", "min", "mean"]):
+    def __init__(self, group_key, group_values, agg_methods=["max", "min", "mean", "std", "median", max_min, q75_q25]):
         self.group_key = group_key
         self.group_values = group_values
         self.agg_methods = agg_methods
@@ -112,6 +130,27 @@ class AggregationBlock(AbstractBaseBlock):
         out_df = pd.DataFrame()
         out_df = self.agg_df
         return out_df
+    
+class RankingBlock(AbstractBaseBlock):
+    def __init__(self, group_key, group_values):
+        self.group_key = group_key
+        self.group_values = group_values
+        
+        self.df = None
+    
+    def fit(self, input_df, y=None):
+        new_df = []
+        new_cols = []
+        
+        for col in self.group_values:
+            new_cols.append(f"ranking_{col}_grpby_{self.group_key}")
+            df__agg = (input_df[[col] + [self.group_key]].groupby(self.group_key)[col].rank(ascending=False, method="min"))
+            new_df.append(df__agg)
+            self.df = pd.concat(new_df, axis=1)
+        self.df.columns = new_cols
+        
+    def transform(self, input_df):
+        return self.df
     
 class SimpleTargetEncodingBlock(AbstractBaseBlock):
     """
