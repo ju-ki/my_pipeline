@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import category_encoders as ce
 import xfeat
-from util import AbstractBaseBlock
+from util import AbstractBaseBlock, read_whole_df
 
 class GetCrossFeatureBlock(AbstractBaseBlock):
     """
@@ -65,39 +65,45 @@ class LabelEncodingBlock(AbstractBaseBlock):
     out_df = self.encoder.fit_transform(input_df[self.cols]).add_prefix("LE_")
     return out_df
     
+
+    
 class CountEncodingBlock(AbstractBaseBlock):
-    
-    """
-    CountEncodingを行うブロック
-    """
-    def __init__(self, cols):
-        self.cols = cols
-        
+    """CountEncodingを行なう block"""
+    def __init__(self, column: str):
+        self.column = column
+
     def fit(self, input_df, y=None):
-        self.encoder = ce.CountEncoder()
+        # vc = input_df[self.column].value_counts()
+        master_df = read_whole_df()
+        vc = master_df[self.column].value_counts()
+        self.count_ = vc
         return self.transform(input_df)
-    
+
     def transform(self, input_df):
         out_df = pd.DataFrame()
-        out_df = self.encoder.fit_transform(input_df[self.cols]).add_prefix("CE_")
-        return out_df
+        out_df[self.column] = input_df[self.column].map(self.count_)
+        return out_df.add_prefix('CE_')
     
     
-class OneHotEncodingBlock(AbstractBaseBlock):
-    """
-    OneHotEncodingを行うブロック
-    """
-    def __init__(self, cols):
-        self.cols = cols
-        
+class OneHotEncoding(AbstractBaseBlock):
+    def __init__(self, column, min_count=30):
+        self.column = column
+        self.min_count = min_count
+
     def fit(self, input_df, y=None):
-        self.encoder = ce.OneHotEncoder(use_cat_names=True)
+        x = input_df[self.column]
+        vc = x.value_counts()
+        categories = vc[vc > self.min_count].index
+        self.categories_ = categories
+
         return self.transform(input_df)
-    
+
     def transform(self, input_df):
-        out_df = pd.DataFrame()
-        out_df = self.encoder.fit_transform(input_df[self.cols]).add_prefix("OHE_")
-        return out_df
+        x = input_df[self.column]
+        cat = pd.Categorical(x, categories=self.categories_)
+        out_df = pd.get_dummies(cat)
+        out_df.columns = out_df.columns.tolist()
+        return out_df.add_prefix(f'{self.column}=')
     
 def max_min(x):
     return x.max() - x.min()
@@ -152,25 +158,113 @@ class RankingBlock(AbstractBaseBlock):
     def transform(self, input_df):
         return self.df
     
-class SimpleTargetEncodingBlock(AbstractBaseBlock):
-    """
-    シンプルなターゲットエンコーディングを行うブロック
+class TargetEncodingBlock(AbstractBaseBlock):
+    def __init__(self, use_columns: List[str], cv):
+        super(TargetEncodingBlock, self).__init__()
+
+        self.mapping_df_ = None
+        self.use_columns = use_columns
+        self.cv = list(cv)
+        self.n_fold = len(cv)
+
+    def create_mapping(self, input_df, y):
+        self.mapping_df_ = {}
+        self.y_mean_ = np.mean(y)
+
+        out_df = pd.DataFrame()
+        target = pd.Series(y)
+
+        for col_name in self.use_columns:
+            keys = input_df[col_name].unique()
+            X = input_df[col_name]
+
+            oof = np.zeros_like(X, dtype=np.float)
+
+            for idx_train, idx_valid in self.cv:
+                _df = target[idx_train].groupby(X[idx_train]).mean()
+                _df = _df.reindex(keys)
+                _df = _df.fillna(_df.mean())
+                oof[idx_valid] = input_df[col_name][idx_valid].map(_df.to_dict())
+
+            out_df[col_name] = oof
+
+            self.mapping_df_[col_name] = target.groupby(X).mean()
+
+        return out_df
+
+    def fit(self,
+            input_df: pd.DataFrame,
+            y=None, **kwrgs) -> pd.DataFrame:
+        out_df = self.create_mapping(input_df, y=y)
+        return out_df.add_prefix('TE_')
+
+    def transform(self, input_df: pd.DataFrame) -> pd.DataFrame:
+        out_df = pd.DataFrame()
+
+        for c in self.use_columns:
+            out_df[c] = input_df[c].map(self.mapping_df_[c]).fillna(self.y_mean_)
+
+        return out_df.add_prefix('TE_')
     
-    cols:
-      cols:ターゲットエンコーディングを行いたいカラム
-      target_cols:ターゲット
-      smoothing: float
-    """
-    def __init__(self, cols, target_cols, smoothing=1.0):
-        self.cols = cols
-        self.target_cols = target_cols
-        self.smoothing = smoothing
+    
+class DiffGroupingEngine(AbstractBaseBlock):
+    def __init__(self, group_key, group_values, num_diffs):
+        self.group_key = group_key
+        self.group_values = group_values
+        self.diffs = num_diffs
         
-    def fit(self, input_df):
-        self.encoder = ce.TargetEncoder(smoothing=self.smoothing)
-        return self.transform(input_df)
+        self.df = None
+        
+    def fit(self, input_df, y=None):
+        dfs = []
+        for nd in self.diffs:
+            _df = input_df.groupby(self.group_key)[self.group_values].diff(nd)
+            _df.columns = [f'diff={nd}_{col}_grpby_{self.group_key}' for col in self.group_values]
+            dfs.append(_df)
+        self.df = pd.concat(dfs, axis=1)
     
     def transform(self, input_df):
-        out_df = pd.DataFrame()
-        out_df = self.encoder.fit_transform(input_df[self.cols], input_df[self.target_cols]).add_prefix("TE_")
-        return out_df
+        return self.df
+
+
+class ShiftGroupingEngine(AbstractBaseBlock):
+    def __init__(self, group_key, group_values, num_shifts):
+        self.group_key = group_key
+        self.group_values = group_values
+        self.shifts = num_shifts
+        
+        self.df = None
+        
+    def fit(self, input_df, y=None):
+        dfs = []
+        for ns in self.shifts:
+            _df = input_df.groupby(self.group_key)[self.group_values].shift(ns)
+            _df.columns = [f'shift={ns}_{col}_grpby_{self.group_key}' for col in self.group_values]
+            dfs.append(_df)
+        self.df = pd.concat(dfs, axis=1)
+    
+    def transform(self, input_df):
+        return self.df
+
+
+class PctChGroupingEngine(AbstractBaseBlock):
+    """
+    Groupごとの変化分を計算
+    """
+    def __init__(self, group_key, group_values, num_pctchs):
+        self.group_key = group_key
+        self.group_values = group_values
+        self.num_pctchs = num_pctchs
+        
+        self.df = None
+        
+    def fit(self, input_df, y=None):
+        dfs = []
+        for np in self.num_pctchs:
+            _df = input_df.groupby(self.group_key)[self.group_values].pct_change(np)
+            _df.columns = [f'pct_change={np}_{col}_grpby_{self.group_key}' for col in self.group_values]
+            dfs.append(_df)
+        self.df = pd.concat(dfs, axis=1)
+    
+    def transform(self, input_df):
+        return self.df

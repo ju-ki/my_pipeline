@@ -3,10 +3,25 @@ import logging
 import sys,os
 import numpy as np
 import pandas as pd
+import inspect
+import random
+import torch
+import tensorflow as tf
 import yaml
 import joblib
 from time import time
 from contextlib import contextmanager
+
+def seed_everything(seed=0):
+    random.seed(seed)
+    os.environ["PYTHONHASHEDSEED"] = str(seed)
+    np.random.seed(seed)
+    tf.set_seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    
+
 # coding: UTF-8
 CONFIG_FILE = '../configs/config.yaml'
 
@@ -43,20 +58,6 @@ class Util:
     @classmethod
     def load_df_pickle(cls, path):
         return pd.read_pickle(path)
-    
-    @classmethod
-    @contextmanager
-    def timer(logger=None, format_str="{:.3f}[s]", prefix=None, suffix=None):
-        if prefix: format_str = str(prefix) + format_str
-        if suffix: format_str = format_str + str(suffix)
-        start = time()
-        yield
-        d = time() - start
-        out_str = format_str.format(d)
-        if logger:
-        logger.info(out_str)
-        else:
-        print(out_str)
 
 
 class Logger:
@@ -173,5 +174,69 @@ def import_data(file):
     df = pd.read_csv(file, parse_dates=True, keep_date_col=True)
     df = reduce_mem_usage(df)
     return df
+
+def param_to_name(params: dict, key_sep='_', key_value_sep='=') -> str:
+    """
+    dict を `key=value` で連結した string に変換します.
+    Args:
+        params:
+        key_sep:
+            key 同士を連結する際に使う文字列.
+        key_value_sep:
+            それぞれの key / value を連結するのに使う文字列.
+            `"="` が指定されると例えば { 'foo': 10 } は `"foo=10"` に変換されます.
+    Returns:
+        文字列化した dict
+    """
+    sorted_params = sorted(params.items())
+    return key_sep.join(map(lambda x: key_value_sep.join(map(str, x)), sorted_params))
+
+
+def cachable(function):
+    attr_name = '__cachefile__'
+    def wrapper(*args, **kwrgs):
+        force = kwrgs.pop('force', False)
+        call_args = inspect.getcallargs(function, *args, **kwrgs)
+
+        arg_name = param_to_name(call_args)
+        name = attr_name + arg_name
+
+        use_cache = hasattr(function, name) and not force
+
+        if use_cache:
+            cache_object = getattr(function, name)
+        else:
+            print('run')
+            cache_object = function(*args, **kwrgs)
+            setattr(function, name, cache_object)
+
+        return cache_object
+
+    return wrapper
+
+@cachable
+def read_csv(name):
+
+    if '.csv' not in name:
+        name = name + '.csv'
+
+    return pd.read_csv(os.path.join(INPUT_PATH, name))
+
+def whole_df():
+  return pd.concat([read_csv("train"), read_csv("test")], ignore_index=True).reset_index
+
+@contextmanager
+def timer(logger=None, format_str="{:.3f}[s]", prefix=None, suffix=None):
+    
+    if prefix: format_str = str(prefix) + format_str
+    if suffix: format_str = format_str + str(suffix)
+    start = time()
+    yield
+    d = time() - start
+    out_str = format_str.format(d)
+    if logger:
+        logger.info(out_str)
+    else:
+        print(out_str)
     
     
