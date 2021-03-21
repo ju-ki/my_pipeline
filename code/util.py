@@ -215,15 +215,13 @@ def cachable(function):
     return wrapper
 
 @cachable
-def read_csv(name):
+def read_csv(name, INPUT_PATH):
 
     if '.csv' not in name:
         name = name + '.csv'
 
     return pd.read_csv(os.path.join(INPUT_PATH, name))
 
-def whole_df():
-  return pd.concat([read_csv("train"), read_csv("test")], ignore_index=True).reset_index
 
 @contextmanager
 def timer(logger=None, format_str="{:.3f}[s]", prefix=None, suffix=None):

@@ -159,52 +159,24 @@ class RankingBlock(AbstractBaseBlock):
         return self.df
     
 class TargetEncodingBlock(AbstractBaseBlock):
-    def __init__(self, use_columns: List[str], cv):
-        super(TargetEncodingBlock, self).__init__()
+  """
+     ceを使用したtarget_encoding
+  """
 
-        self.mapping_df_ = None
-        self.use_columns = use_columns
-        self.cv = list(cv)
-        self.n_fold = len(cv)
+  def __init__(self, cols, target):
+    self.cols = cols
+    self.target = target
+    self.encoder = ce.TargetEncoder(cols=self.cols)
 
-    def create_mapping(self, input_df, y):
-        self.mapping_df_ = {}
-        self.y_mean_ = np.mean(y)
+  def fit(self, input_df):
+    out_df = pd.DataFrame()
+    out_df = self.encoder.fit_transform(input_df[self.cols], input_df[self.target])
+    return out_df.add_prefix("TE_")
 
-        out_df = pd.DataFrame()
-        target = pd.Series(y)
-
-        for col_name in self.use_columns:
-            keys = input_df[col_name].unique()
-            X = input_df[col_name]
-
-            oof = np.zeros_like(X, dtype=np.float)
-
-            for idx_train, idx_valid in self.cv:
-                _df = target[idx_train].groupby(X[idx_train]).mean()
-                _df = _df.reindex(keys)
-                _df = _df.fillna(_df.mean())
-                oof[idx_valid] = input_df[col_name][idx_valid].map(_df.to_dict())
-
-            out_df[col_name] = oof
-
-            self.mapping_df_[col_name] = target.groupby(X).mean()
-
-        return out_df
-
-    def fit(self,
-            input_df: pd.DataFrame,
-            y=None, **kwrgs) -> pd.DataFrame:
-        out_df = self.create_mapping(input_df, y=y)
-        return out_df.add_prefix('TE_')
-
-    def transform(self, input_df: pd.DataFrame) -> pd.DataFrame:
-        out_df = pd.DataFrame()
-
-        for c in self.use_columns:
-            out_df[c] = input_df[c].map(self.mapping_df_[c]).fillna(self.y_mean_)
-
-        return out_df.add_prefix('TE_')
+  def transform(self, input_df):
+    out_df = pd.DataFrame()
+    out_df = self.encoder.transform(input_df[self.cols])
+    return out_df.add_prefix("TE_")
     
     
 class DiffGroupingEngine(AbstractBaseBlock):
