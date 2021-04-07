@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import category_encoders as ce
 import xfeat
-from util import AbstractBaseBlock, read_whole_df
+from util import AbstractBaseBlock
 
 class GetCrossFeatureBlock(AbstractBaseBlock):
     """
