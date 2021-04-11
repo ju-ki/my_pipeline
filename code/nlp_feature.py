@@ -19,8 +19,9 @@ class StringLengthBlock(AbstractBaseBlock):
         out_df[self.column] = input_df[self.column].str.len()
         return out_df.add_prefix('StringLength_')
 
+
 class GetCountWord(AbstractBaseBlock):
-    
+
     """単語数を取得するブロック"""
   def __init__(self, cols):
     self.cols = cols
@@ -106,7 +107,7 @@ class NameNGramBlock(AbstractBaseBlock):
 def text_normalization(text):
 
     # 英語とオランダ語を stopword として指定
-    #複数の言語を処理したい場合は逐一変更
+    # 複数の言語を処理したい場合は逐一変更
     custom_stopwords = nltk.corpus.stopwords.words('english')
 
     x = hero.clean(text, pipeline=[

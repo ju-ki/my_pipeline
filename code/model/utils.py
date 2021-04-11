@@ -3,8 +3,9 @@ import pandas as pd
 
 from sklearn.model_selection import KFold
 
+
 class GroupKFold:
-    
+
     """
     ref:https://zenn.dev/mst8823/articles/cd40cb971f702e masatoさんのベースラインから
     """

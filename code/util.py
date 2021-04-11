@@ -1,6 +1,7 @@
 import datetime
 import logging
-import sys,os
+import sys
+import os
 import numpy as np
 import pandas as pd
 import inspect
@@ -12,6 +13,7 @@ import joblib
 from time import time
 from contextlib import contextmanager
 
+
 def seed_everything(seed=0):
     random.seed(seed)
     os.environ["PYTHONHASHEDSEED"] = str(seed)
@@ -20,7 +22,7 @@ def seed_everything(seed=0):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
-    
+
 
 # coding: UTF-8
 CONFIG_FILE = '../configs/config.yaml'
@@ -39,6 +41,7 @@ try:
     absl.logging._warn_preinit_stderr = False
 except Exception:
     pass
+
 
 class Util:
 
@@ -78,7 +81,8 @@ class Logger:
 
     def info(self, message):
         # 時刻をつけてコンソールとログに出力
-        self.general_logger.info('[{}] - {}'.format(self.now_string(), message))
+        self.general_logger.info(
+            '[{}] - {}'.format(self.now_string(), message))
 
     def result(self, message):
         self.result_logger.info(message)
@@ -115,32 +119,34 @@ class Submission:
         submission.to_csv(path + f'{run_name}_submission.csv', index=False)
 
         logger.info(f'{run_name} - end create submission')
-        
-        
+
+
 class AbstractBaseBlock:
     def fit(self, input_df, y=None):
         return self.transform(input_df)
-    
+
     def transform(self, input_df):
         raise NotImplementedError()
-    
+
+
 class WrapperBlock(AbstractBaseBlock):
     def __init__(self, function):
         self.function = function
-        
+
     def transform(self, input_df):
         return self.function(input_df)
-    
+
+
 def reduce_mem_usage(df):
     """ iterate through all the columns of a dataframe and modify the data type
         to reduce memory usage.        
     """
     start_mem = df.memory_usage().sum() / 1024**2
     print('Memory usage of dataframe is {:.2f} MB'.format(start_mem))
-    
+
     for col in df.columns:
         col_type = df[col].dtype
-        
+
         if col_type != object:
             c_min = df[col].min()
             c_max = df[col].max()
@@ -152,7 +158,7 @@ def reduce_mem_usage(df):
                 elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
                     df[col] = df[col].astype(np.int32)
                 elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
-                    df[col] = df[col].astype(np.int64)  
+                    df[col] = df[col].astype(np.int64)
             else:
                 if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
                     df[col] = df[col].astype(np.float16)
@@ -165,15 +171,18 @@ def reduce_mem_usage(df):
 
     end_mem = df.memory_usage().sum() / 1024**2
     print('Memory usage after optimization is: {:.2f} MB'.format(end_mem))
-    print('Decreased by {:.1f}%'.format(100 * (start_mem - end_mem) / start_mem))
-    
+    print('Decreased by {:.1f}%'.format(
+        100 * (start_mem - end_mem) / start_mem))
+
     return df
+
 
 def import_data(file):
     """create a dataframe and optimize its memory usage"""
     df = pd.read_csv(file, parse_dates=True, keep_date_col=True)
     df = reduce_mem_usage(df)
     return df
+
 
 def param_to_name(params: dict, key_sep='_', key_value_sep='=') -> str:
     """
@@ -194,6 +203,7 @@ def param_to_name(params: dict, key_sep='_', key_value_sep='=') -> str:
 
 def cachable(function):
     attr_name = '__cachefile__'
+
     def wrapper(*args, **kwrgs):
         force = kwrgs.pop('force', False)
         call_args = inspect.getcallargs(function, *args, **kwrgs)
@@ -214,6 +224,7 @@ def cachable(function):
 
     return wrapper
 
+
 @cachable
 def read_csv(name, INPUT_PATH):
 
@@ -225,9 +236,11 @@ def read_csv(name, INPUT_PATH):
 
 @contextmanager
 def timer(logger=None, format_str="{:.3f}[s]", prefix=None, suffix=None):
-    
-    if prefix: format_str = str(prefix) + format_str
-    if suffix: format_str = format_str + str(suffix)
+
+    if prefix:
+        format_str = str(prefix) + format_str
+    if suffix:
+        format_str = format_str + str(suffix)
     start = time()
     yield
     d = time() - start
@@ -236,5 +249,3 @@ def timer(logger=None, format_str="{:.3f}[s]", prefix=None, suffix=None):
         logger.info(out_str)
     else:
         print(out_str)
-    
-    
