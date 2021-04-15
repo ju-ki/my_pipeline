@@ -1,4 +1,6 @@
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 import seaborn as sns
 from lightgbm import LGBMModel
 
@@ -13,8 +15,8 @@ class MyLGBMModel:
 
         group = train_df["art_series_id"]
         def make_gkf(X, y, n_splits=5, random_state=0):
-          gkf = GroupKFold(n_splits=n_splits, random_state=random_state)
-          return list(gkf.split(X, y, group))
+        gkf = GroupKFold(n_splits=n_splits, random_state=random_state)
+        return list(gkf.split(X, y, group))
 
         """
 
