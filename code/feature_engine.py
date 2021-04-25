@@ -79,9 +79,9 @@ class CountEncodingBlock(AbstractBaseBlock):
         self.column = column
 
     def fit(self, input_df, y=None):
-        # vc = input_df[self.column].value_counts()
-        master_df = read_whole_df()
-        vc = master_df[self.column].value_counts()
+        vc = input_df[self.column].value_counts()
+        # master_df = read_whole_df()
+        # vc = master_df[self.column].value_counts()
         self.count_ = vc
         return self.transform(input_df)
 
