@@ -49,7 +49,9 @@ class BaseModel(object):
             oof_seeds.append(oof)
             score_seeds.append(np.mean(scores))
 
+        print("学習完了")
         oof = np.mean(oof_seeds, axis=0)
+        print(oof)
         print(f"FINISHED| model:{name} score:{metrics(train_y, oof):.4f}\n")
         return oof, models
 
