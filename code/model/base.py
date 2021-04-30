@@ -22,8 +22,8 @@ class BaseModel(object):
             fold_idx = cv(train_x.values, train_y.values,
                           n_splits=5, random_state=seed)
 
-            if "random_state" in params:
-                model_params["random_state"] = seed
+            # if "random_state" in params:
+            #     model_params["random_state"] = seed
 
             for cv_num, (tr_idx, va_idx) in enumerate(fold_idx):
                 tr_x, va_x = train_x.values[tr_idx], train_x.values[va_idx]
@@ -33,7 +33,7 @@ class BaseModel(object):
                 model = self.build_model()
                 model = self.fit(tr_x, tr_y, va_x, va_y)
                 model_name = f"{name}_SEED{seed}_FOLD{cv_num}_model"
-                models[model_name] = self.model
+                models[model_name] = model
 
                 pred = self.predict(self.model, va_x)
                 oof.append(pred)
@@ -53,7 +53,7 @@ class BaseModel(object):
         print(f"FINISHED| model:{name} score:{metrics(train_y, oof):.4f}\n")
         return oof, models
 
-    def inference(self, test_x):
+    def inference(self, test_x, models):
         preds = []
         for name, est in models.items():
             print(f"{name} ------->")
