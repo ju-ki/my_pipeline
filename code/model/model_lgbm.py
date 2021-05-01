@@ -13,25 +13,24 @@ class MyLGBMModel(BaseModel):
     def __init__(self, model_params, fit_params):
         self.model_params = model_params
         self.fit_params = fit_params
-        self.models = []
         self.model = None
 
     def build_model(self):
         self.model = LGBMModel(**self.model_params)
         return self.model
 
-    def fit(self, train_x, train_y, valid_x, valid_y):
+    def fit(self, train_x, train_y, valid_x=None, valid_y=None):
         self.model = self.build_model()
         self.model.fit(
             train_x, train_y,
             eval_set=[[valid_x, valid_y]],
             **self.fit_params
         )
-        self.models.append(self.model)
         return self.model
 
     def predict(self, model, valid_x):
-        return self.model.predict(valid_x)
+        preds = self.model.predict(valid_x)
+        return preds
 
     def visualize_feature_importance(self, train_x, train_y, cv, num=50):
         self.vis_model = self.build_model()

@@ -22,9 +22,6 @@ class BaseModel(object):
             fold_idx = cv(train_x.values, train_y.values,
                           n_splits=5, random_state=seed)
 
-            # if "random_state" in params:
-            #     model_params["random_state"] = seed
-
             for cv_num, (tr_idx, va_idx) in enumerate(fold_idx):
                 tr_x, va_x = train_x.values[tr_idx], train_x.values[va_idx]
                 tr_y, va_y = train_y.values[tr_idx], train_y.values[va_idx]
