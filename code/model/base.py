@@ -11,7 +11,7 @@ class BaseModel(object):
     def predict(self, model, valid_x):
         raise NotImplementedError
 
-    def run(self, name, train_x, train_y, cv, metrics, seeds):
+    def run(self, name, train_x, train_y, cv, metrics, n_splits, seeds):
         oof_seeds = []
         score_seeds = []
         models = {}
@@ -20,7 +20,7 @@ class BaseModel(object):
             va_idxes = []
             scores = []
             fold_idx = cv(train_x.values, train_y.values,
-                          n_splits=5, random_state=seed)
+                          n_splits=n_splits, random_state=seed)
 
             for cv_num, (tr_idx, va_idx) in enumerate(fold_idx):
                 tr_x, va_x = train_x.values[tr_idx], train_x.values[va_idx]
