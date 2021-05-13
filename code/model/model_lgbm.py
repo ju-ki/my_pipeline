@@ -35,7 +35,7 @@ class MyLGBMModel(BaseModel):
     def visualize_feature_importance(self, train_x, train_y, cv, num=50):
         self.vis_model = self.build_model()
         feature_importance_df = pd.DataFrame()
-        for cv_num, (tr_idx, va_idx) in enumerate(cv(train_x.values, train_y.values, n_splits=5)):
+        for cv_num, (tr_idx, va_idx) in enumerate(cv(train_x.values, train_y.values, n_splits=5, random_state=0)):
             tr_x, va_x = train_x.values[tr_idx], train_x.values[va_idx]
             tr_y, va_y = train_y.values[tr_idx], train_y.values[va_idx]
             self.vis_model.fit(tr_x, tr_y,
