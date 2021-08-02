@@ -69,7 +69,7 @@ class LabelEncodingBlock(AbstractBaseBlock):
         out_df = pd.DataFrame()
         out_df = self.encoder.fit_transform(
             input_df[self.cols]).add_prefix("LE_")
-        return out_df
+        return out_df.astype("category")
 
 
 class CountEncodingBlock(AbstractBaseBlock):
@@ -109,7 +109,7 @@ class OneHotEncoding(AbstractBaseBlock):
         cat = pd.Categorical(x, categories=self.categories_)
         out_df = pd.get_dummies(cat)
         out_df.columns = out_df.columns.tolist()
-        return out_df.add_prefix(f'{self.column}=')
+        return out_df.add_prefix(f'{self.column}=').astype("category")
 
 
 def max_min(x):
@@ -249,11 +249,11 @@ class PctChGroupingEngine(AbstractBaseBlock):
 
     def fit(self, input_df, y=None):
         dfs = []
-        for np in self.num_pctchs:
+        for n in self.num_pctchs:
             _df = input_df.groupby(self.group_key)[
-                self.group_values].pct_change(np)
+                self.group_values].pct_change(n)
             _df.columns = [
-                f'pct_change={np}_{col}_grpby_{self.group_key}' for col in self.group_values]
+                f'pct_change={n}_{col}_grpby_{self.group_key}' for col in self.group_values]
             dfs.append(_df)
         self.df = pd.concat(dfs, axis=1)
 

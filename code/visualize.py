@@ -2,6 +2,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import textstat
+from wordcloud import WordCloud
+from sklearn.feature_extraction.text import CountVectorizer
 import japanize_matplotlib
 from matplotlib_venn import venn2
 from sklearn.metrics import confusion_matrix
@@ -10,33 +13,38 @@ from sklearn.utils.multiclass import unique_labels
 sns.set()
 
 
-def get_grpby_info(data, group_key, target_col, display_num=None, ascending=False):
+def create_distplot(input_df):
+    """[summary]
+    数値データを統計量(mean, max, min, median, std)と共にプロットする関数
+    また平均となる部分に対して縦線をプロット
+    Args:
+        input_df (pd.DataFrame): Target data
     """
-    集約した情報を渡す関数
-        data: data,
-        group_key: 集約したいカラム,
-        target_col: 対象となるカラム,
-        display_num: 表示する個数（defaultはNone）
-        ascending:　defaultはFalse
+    for column in input_df.select_dtypes(exclude=object):
+        print(f"{column}: \n Mean:{input_df[column].mean() :0.3f}, Max:{np.max(input_df[column]) : 0.3f}, Min:{np.min(input_df[column]) : 0.3f}, Median:{np.median(input_df[column]) : 0.3f}, Std:{np.std(input_df[column]) : 0.2f}")
+        sns.distplot(input_df[column])
+        plt.axvline(input_df[column].mean(), color="red", label="mean")
+        plt.grid()
+        plt.legend()
+        plt.show()
+        print("***" * 40)
+
+
+def create_value_count_plot(input_df, col_list, n=5):
     """
-    print("-------------------------------count------------------------------------")
-    display(data.groupby(group_key).agg({target_col: "count"}).sort_values(
-        target_col, ascending=ascending).head(display_num))
-    print("-------------------------------mean------------------------------------")
-    display(data.groupby(group_key).agg({target_col: "mean"}).sort_values(
-        target_col, ascending=ascending).head(display_num))
-    print("-------------------------------median------------------------------------")
-    display(data.groupby(group_key).agg({target_col: "mean"}).sort_values(
-        target_col, ascending=ascending).head(display_num))
-    print("-------------------------------max------------------------------------")
-    display(data.groupby(group_key).agg({target_col: "mean"}).sort_values(
-        target_col, ascending=ascending).head(display_num))
-    print("-------------------------------min------------------------------------")
-    display(data.groupby(group_key).agg({target_col: "mean"}).sort_values(
-        target_col, ascending=ascending).head(display_num))
-    print("-------------------------------std------------------------------------")
-    display(data.groupby(group_key).agg({target_col: "mean"}).sort_values(
-        target_col, ascending=ascending).head(display_num))
+    指定したカラム(objectやcategory)データの数をプロットする関数
+
+    args:
+       input_df : pd.DataFrame
+       col_list : list
+       n : Argument to specify how many unique values should be plotted (default=5)
+    """
+    for col in col_list:
+        plt.subplots(figsize=(8, 8))
+        print(f"{col}: \n {input_df[col].value_counts()[:n]}")
+        input_df[col].value_counts().plot.bar()
+        plt.show()
+        print("***" * 40)
 
 
 def plot_intersection(left, right, column, set_labels, ax=None):
@@ -93,9 +101,19 @@ def visualize_binary_data(input_df, cols, target_cols, pos_var, neg_var):
 
 
 def show_scatterplot(input_df, x, y, hue=None, reg=True, title=None, xlabel=None, ylabel=None):
+    """[summary]
+    plot scatter plot and correlation.
+    Args:
+        input_df (pd.DataFrame): target data
+        x (string): target column name
+        y (string): target column name
+        hue (string, optional): sort specified data. Defaults to None.
+        reg (bool, optional): plot regression. Defaults to True.
+        title (string, optional): plot title. Defaults to None.
+        xlabel (string, optional): plot label for target column named x. Defaults to None.
+        ylabel (string, optional): plot label for target column named y. Defaults to None.
     """
-    散布図
-    """
+    print(f"correlation: \n {input_df[[x, y]].corr()}")
     plt.figure(figsize=(8, 6))
     if hue is not None:
         input_df = input_df.sort_values(hue)
@@ -111,6 +129,42 @@ def show_scatterplot(input_df, x, y, hue=None, reg=True, title=None, xlabel=None
 
     if ylabel is not None:
         plt.ylabel(ylabel)
+    plt.show()
+    print("***" * 40)
+
+
+def create_heatmap(input_df):
+    """[summary]
+    plot heatmap for integer and float column
+    Args:
+        input_df (pd.DataFrame): target data
+    """
+    plt.figure(figsize=(15, 15))
+    corr = input_df.select_dtypes(exclude=object).corr()
+    sns.heatmap(corr, annot=True, cmap='Blues', fmt=".3f")
+    plt.show()
+
+
+def create_static_feature_of_grk_feature(input_df, col, target, static='mean', n=None):
+    """[summary]
+
+    Args:
+        input_df (pd.DataFrame): target data
+        col (string): column
+        target (string): target column
+        static (str, optional): groupby statistics . Defaults to 'mean'.
+        n (int, optional): Argument to specify how many plotted. Defaults to None.
+    """
+    grk_df = input_df.groupby(col).agg(
+        {target: static}).sort_values(target, ascending=False)
+    print("***" * 40)
+    plt.figure(figsize=(10, 10))
+    sns.barplot(data=pd.DataFrame(
+        grk_df.values.T[:, :n], columns=grk_df.index.tolist()[:n]))
+    plt.title(f"{static} feature of groupby {col} columns")
+    plt.xlabel(f"unique feature for {col} colum")
+    plt.ylabel(f"{target} {static}")
+    plt.xticks(rotation=45)
     plt.show()
 
 
@@ -181,6 +235,129 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     fig.tight_layout()
     plt.show()
     return ax
+
+
+def get_basic_nlp_info(input_df, col, target):
+    """[summary]
+    create basic nlp feature like string length and sentence length
+    moreover plot statistics for these nlp feature and heatmap
+    Args:
+        input_df (pd.DataFrame): target data
+        col (string): string column
+        target (string): target column
+    """
+    info_df = pd.DataFrame()
+    info_df[target] = input_df[target]
+    info_df["number_of_string"] = input_df[col].apply(lambda x: len(x))
+    info_df["number_of_word_count"] = input_df[col].apply(
+        lambda x: len(x.split()))
+    info_df["number_of_unique_word_count"] = input_df[col].apply(
+        lambda x: len(set(x.split())))
+    info_df["number_of_sentence_count"] = input_df[col].apply(
+        lambda x: textstat.sentence_count(x))
+    info_df["number_of_syllable_count"] = input_df[col].apply(
+        lambda x: textstat.syllable_count(x))
+    info_df["avg_character_per_word"] = input_df[col].apply(
+        lambda x: textstat.avg_character_per_word(x))
+    info_df["avg_letter_per_word"] = input_df[col].apply(
+        lambda x: textstat.avg_letter_per_word(x))
+    info_df["avg_sentence_per_word"] = input_df[col].apply(
+        lambda x: textstat.avg_sentence_per_word(x))
+    info_df["avg_sentence_length"] = input_df[col].apply(
+        lambda x: textstat.avg_sentence_length(x))
+    display(info_df.describe())
+    print("**" * 40 + "heatmap" + "**" * 40)
+    create_heatmap(info_df)
+
+
+def create_wordcloud(input_df, col, stopwords=None):
+    """[summary]
+    plot word frequency with WordCloud
+    Args:
+        input_df (pd.DataFrame): target data
+        col (string): string column
+        stopwords (list, optional): remove words . Defaults to None.
+    """
+    print(col)
+    plt.subplots(figsize=(15, 15))
+    wordcloud = WordCloud(stopwords=stopwords,
+                          background_color="White", width=1800, height=1000)
+    wordcloud.generate(" ".join(input_df[col]))
+    plt.imshow(wordcloud)
+    plt.axis("off")
+    plt.show()
+
+
+def create_top_ngram_word_plot(input_df, col, n=20, stop_words=None, ngram=4):
+    """[summary]
+
+    Args:
+        input_df (pd.DataFrame): target data
+        col (string): string column
+        n (int, optional): Argument to specify how many data should be plotted. Defaults to 20.
+        stop_words (list, optional): remove words. Defaults to None.
+        ngram (int, n=1:unigram, n=2:bigram, n=3:trigram, n=4:all ngram(uni, bi, tri)): Specify which ngrams to plot. Defaults to 4.
+    """
+    def get_top_n_words(corpus, n=None, stop_words=None):
+        vec = CountVectorizer(stop_words=stop_words).fit(corpus)
+        bag_of_words = vec.transform(corpus)
+        sum_words = bag_of_words.sum(axis=0)
+        words_freq = [(word, sum_words[0, idx])
+                      for word, idx in vec.vocabulary_.items()]
+        words_freq = sorted(words_freq, key=lambda x: x[1], reverse=True)
+        return words_freq[:n]
+
+    def get_top_n_bigram(corpus, n=None, stop_words=None):
+        vec = CountVectorizer(ngram_range=(
+            2, 2), stop_words=stop_words).fit(corpus)
+        bag_of_words = vec.transform(corpus)
+        sum_words = bag_of_words.sum(axis=0)
+        words_freq = [(word, sum_words[0, idx])
+                      for word, idx in vec.vocabulary_.items()]
+        words_freq = sorted(words_freq, key=lambda x: x[1], reverse=True)
+        return words_freq[:n]
+
+    def get_top_n_trigram(corpus, n=None, stop_words=None):
+        vec = CountVectorizer(ngram_range=(
+            3, 3), stop_words=stop_words).fit(corpus)
+        bag_of_words = vec.transform(corpus)
+        sum_words = bag_of_words.sum(axis=0)
+        words_freq = [(word, sum_words[0, idx])
+                      for word, idx in vec.vocabulary_.items()]
+        words_freq = sorted(words_freq, key=lambda x: x[1], reverse=True)
+        return words_freq[:n]
+
+    def plot_freq_word(df, n=None, name=None):
+        plt.figure(figsize=(10, 10))
+        ax = sns.barplot(x="freq", y="word", data=pd.DataFrame(
+            df, columns=["word", "freq"]))
+        plt.title(f"Top {n} {name}")
+        plt.xticks(rotation=45)
+        plt.xlabel("Frequency")
+        plt.ylabel("")
+        plt.show()
+
+    if ngram == 1:
+        unigram_df = get_top_n_words(input_df[col], n=n, stop_words=stop_words)
+        plot_freq_word(unigram_df, n=n, name="unigram")
+    elif ngram == 2:
+        bigram_df = get_top_n_bigram(input_df[col], n=n, stop_words=stop_words)
+        plot_freq_word(bigram_df, n=n, name="bigram")
+    elif ngram == 3:
+        trigram_df = get_top_n_trigram(
+            input_df[col], n=n, stop_words=stop_words)
+        plot_freq_word(trigram_df, n=n, name="trigram")
+    elif ngram == 4:
+        print("***" * 40)
+        unigram_df = get_top_n_words(input_df[col], n=n, stop_words=stop_words)
+        plot_freq_word(unigram_df, n=n, name="unigram")
+        print("***" * 40)
+        bigram_df = get_top_n_bigram(input_df[col], n=n, stop_words=stop_words)
+        plot_freq_word(bigram_df, n=n, name="bigram")
+        print("***" * 40)
+        trigram_df = get_top_n_trigram(
+            input_df[col], n=n, stop_words=stop_words)
+        plot_freq_word(trigram_df, n=n, name="trigram")
 
 
 def visualize_importance(models, feat_train_df):

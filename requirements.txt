@@ -1,0 +1,5 @@
+textstat
+japanize_matplotlib
+xfeat
+category_encoders
+texthero
