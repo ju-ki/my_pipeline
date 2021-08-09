@@ -5,9 +5,20 @@ import texthero as hero
 from nltk.util import ngrams
 from fasttext import load_model
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from sklearn.decomposition import TruncatedSVD, PCA
 from sklearn.pipeline import Pipeline
+
+import scipy.sparse as sp
+
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.utils.validation import check_is_fitted
+from sklearn.feature_extraction.text import _document_frequency
+
+import torch
+import transformers
+
+from transformers import BertTokenizer
+from util import AbstractBaseBlock
 
 
 class StringLengthBlock(AbstractBaseBlock):
@@ -21,16 +32,17 @@ class StringLengthBlock(AbstractBaseBlock):
 
 
 class GetCountWord(AbstractBaseBlock):
-
     """単語数を取得するブロック"""
-  def __init__(self, cols):
-    self.cols = cols
 
-  def transform(self, input_df):
-    out_df = pd.DataFrame()
-    out_df[self.cols] = cleansing_hero_text(input_df[self.cols])
-    out_df[self.cols] = out_df[self.cols].apply(lambda x: len(x.split())).fillna("")
-    return out_df.add_prefix("count_word_")
+    def __init__(self, cols):
+        self.cols = cols
+
+    def transform(self, input_df):
+        out_df = pd.DataFrame()
+        out_df[self.cols] = cleansing_hero_text(input_df[self.cols])
+        out_df[self.cols] = out_df[self.cols].apply(
+            lambda x: len(x.split())).fillna("")
+        return out_df.add_prefix("count_word_")
 
 
 def cleansing_hero_text(text_col):
@@ -156,95 +168,136 @@ class TfidfBlock(AbstractBaseBlock):
         z = self.pileline_.transform(text)
 
         out_df = pd.DataFrame(z)
-        return out_df.add_prefix(f'{self.column}_tfidf_')
-      
-class TextVectorizer(AbstractBaseBlock):
+        
+# reference: https://github.com/arosh/BM25Transformer/blob/master/bm25.py
+class BM25Transformer(BaseEstimator, TransformerMixin):
+    """
+    Parameters
+    ----------
+    use_idf : boolean, optional (default=True)
+    k1 : float, optional (default=2.0)
+    b : float, optional (default=0.75)
+    References
+    ----------
+    Okapi BM25: a non-binary model - Introduction to Information Retrieval
+    http://nlp.stanford.edu/IR-book/html/htmledition/okapi-bm25-a-non-binary-model-1.html
+    """
+    def __init__(self, use_idf=True, k1=2.0, b=0.75):
+        self.use_idf = use_idf
+        self.k1 = k1
+        self.b = b
 
-    def __init__(self,
-                 text_columns,
-                 cleansing_hero=None,
-                 vectorizer=CountVectorizer(),
-                 transformer=TruncatedSVD(n_components=128),
-                 transformer2=None,
-                 name='',
-                 ):
-        self.text_columns = text_columns
-        self.n_components = transformer.n_components
-        self.vectorizer = vectorizer
-        self.transformer = transformer
-        self.transformer2 = transformer2
-        self.name = name
-        self.cleansing_hero = cleansing_hero
+    def fit(self, X):
+        """
+        Parameters
+        ----------
+        X : sparse matrix, [n_samples, n_features]
+            document-term matrix
+        """
+        if not sp.issparse(X):
+            X = sp.csc_matrix(X)
+        if self.use_idf:
+            n_samples, n_features = X.shape
+            df = _document_frequency(X)
+            idf = np.log((n_samples - df + 0.5) / (df + 0.5))
+            self._idf_diag = sp.spdiags(idf, diags=0, m=n_features, n=n_features)
+        return self
 
-        self.df = None
+    def transform(self, X, copy=True):
+        """
+        Parameters
+        ----------
+        X : sparse matrix, [n_samples, n_features]
+            document-term matrix
+        copy : boolean, optional (default=True)
+        """
+        if hasattr(X, 'dtype') and np.issubdtype(X.dtype, np.float):
+            # preserve float family dtype
+            X = sp.csr_matrix(X, copy=copy)
+        else:
+            # convert counts or binary occurrences to floats
+            X = sp.csr_matrix(X, dtype=np.float64, copy=copy)
 
-    def fit(self, input_df, y=None):
-        output_df = pd.DataFrame()
-        output_df[self.text_columns] = input_df[self.text_columns].astype(str).fillna('missing')
-        features = []
-        for c in self.text_columns:
-            if self.cleansing_hero is not None:
-                output_df[c] = self.cleansing_hero(output_df, c)
+        n_samples, n_features = X.shape
 
-            sentence = self.vectorizer.fit_transform(output_df[c])
-            feature = self.transformer.fit_transform(sentence)
+        # Document length (number of terms) in each row
+        # Shape is (n_samples, 1)
+        dl = X.sum(axis=1)
+        # Number of non-zero elements in each row
+        # Shape is (n_samples, )
+        sz = X.indptr[1:] - X.indptr[0:-1]
+        # In each row, repeat `dl` for `sz` times
+        # Shape is (sum(sz), )
+        # Example
+        # -------
+        # dl = [4, 5, 6]
+        # sz = [1, 2, 3]
+        # rep = [4, 5, 5, 6, 6, 6]
+        rep = np.repeat(np.asarray(dl), sz)
+        # Average document length
+        # Scalar value
+        avgdl = np.average(dl)
+        # Compute BM25 score only for non-zero elements
+        data = X.data * (self.k1 + 1) / (X.data + self.k1 * (1 - self.b + self.b * rep / avgdl))
+        X = sp.csr_matrix((data, X.indices, X.indptr), shape=X.shape)
 
-            if self.transformer2 is not None:
-                feature = self.transformer2.fit_transform(feature)
+        if self.use_idf:
+            check_is_fitted(self, '_idf_diag', 'idf vector is not fitted')
 
-            num_p = feature.shape[1]
-            feature = pd.DataFrame(feature, columns=[f"{c}_{self.name}{num_p}" + f'={i:03}' for i in range(num_p)])
-            features.append(feature)
-        output_df = pd.concat(features, axis=1)
-        self.df = output_df
+            expected_n_features = self._idf_diag.shape[0]
+            if n_features != expected_n_features:
+                raise ValueError("Input has n_features=%d while the model"
+                                 " has been trained with n_features=%d" % (
+                                     n_features, expected_n_features))
+            # *= doesn't work
+            X = X * self._idf_diag
 
-    def transform(self, input_df):
-        return self.df
+        return X
+    
+class BertSequenceVectorizer:
+    def __init__(self, model_name="bert-base-uncased", max_len=128):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model_name = model_name
+        self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
+        self.bert_model = transformers.BertModel.from_pretrained(self.model_name)
+        self.bert_model = self.bert_model.to(self.device)
+        self.max_len = max_len
 
+    def vectorize(self, sentence: str) -> np.array:
+        inp = self.tokenizer.encode(sentence)
+        len_inp = len(inp)
 
-class Doc2VecFeatureTransformer(AbstractBaseBlock):
+        if len_inp >= self.max_len:
+            inputs = inp[:self.max_len]
+            masks = [1] * self.max_len
+        else:
+            inputs = inp + [0] * (self.max_len - len_inp)
+            masks = [1] * len_inp + [0] * (self.max_len - len_inp)
 
-    def __init__(self, text_columns, cleansing_hero=None, params=None, name='doc2vec'):
-        self.text_columns = text_columns
-        self.cleansing_hero = cleansing_hero
-        self.name = name
-        self.params = params
-        self.df = None
+        inputs_tensor = torch.tensor([inputs], dtype=torch.long).to(self.device)
+        masks_tensor = torch.tensor([masks], dtype=torch.long).to(self.device)
 
-    def fit(self, input_df, y=None):
-        dfs = []
-        for c in self.text_columns:
-            texts = input_df[c].astype(str)
-            if self.cleansing_hero is not None:
-                texts = self.cleansing_hero(input_df, c)
-            texts = [text.split() for text in texts]
+        bert_out = self.bert_model(inputs_tensor, masks_tensor)
+        seq_out, pooled_out = bert_out['last_hidden_state'], bert_out['pooler_output']
 
-            corpus = [TaggedDocument(words=text, tags=[i]) for i, text in enumerate(texts)]
-            self.params["documents"] = corpus
-            model = Doc2Vec(**self.params, hashfxn=hashfxn)
+        if torch.cuda.is_available():    
+            return seq_out[0][0].cpu().detach().numpy() # 0番目は [CLS] token, 768 dim の文章特徴量
+        else:
+            return seq_out[0][0].detach().numpy()
 
-            result = np.array([model.infer_vector(text) for text in texts])
-            output_df = pd.DataFrame(result)
-            output_df.columns = [f'{c}_{self.name}:{i:03}' for i in range(result.shape[1])]
-            dfs.append(output_df)
-        output_df = pd.concat(dfs, axis=1)
-        self.df = output_df
-
-    def transform(self, dataframe):
-        return self.df
     
 class GetLanguageLabel(AbstractBaseBlock):
     """
     言語判定するブロック
     """
-  def __init__(self, cols):
-    self.cols = cols
+    def __init__(self, cols, path):
+      self.cols = cols
+      self.path = path
+    def fit(self, input_df):
+      self.model = load_model(self.path)
+      return self.transform(input_df)
 
-  def fit(self, input_df):
-    self.model = load_model("/content/drive/MyDrive/atmacup10/data/external/lid.176.bin")
-    return self.transform(input_df)
-
-  def transform(self, input_df):
-    out_df = pd.DataFrame()
-    out_df[self.cols] = input_df[self.cols].fillna("").map(lambda x: self.model.predict(x.replace("\n", ""))[0][0])
-    return out_df.add_prefix("lang_label_")
+    def transform(self, input_df):
+      out_df = pd.DataFrame()
+      out_df[self.cols] = input_df[self.cols].fillna("").map(lambda x: self.model.predict(x.replace("\n", ""))[0][0])
+      return out_df.add_prefix("lang_label_")

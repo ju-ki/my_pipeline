@@ -32,19 +32,8 @@ with open(CONFIG_FILE) as file:
 RAW_DATA_DIR_NAME = yml['SETTING']['RAW_DATA_DIR_NAME']
 SUB_DIR_NAME = yml['SETTING']['SUB_DIR_NAME']
 
-# tensorflowとloggingのcollisionに対応
-try:
-    import absl.logging
-    # https://github.com/abseil/abseil-py/issues/99
-    logging.root.removeHandler(absl.logging._absl_handler)
-    # https://github.com/abseil/abseil-py/issues/102
-    absl.logging._warn_preinit_stderr = False
-except Exception:
-    pass
-
 
 class Util:
-
     @classmethod
     def dump(cls, value, path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -53,14 +42,6 @@ class Util:
     @classmethod
     def load(cls, path):
         return joblib.load(path)
-
-    @classmethod
-    def dump_df_pickle(cls, df, path):
-        df.to_pickle(path)
-
-    @classmethod
-    def load_df_pickle(cls, path):
-        return pd.read_pickle(path)
 
 
 class Logger:
@@ -226,3 +207,89 @@ def timer(logger=None, format_str="{:.3f}[s]", prefix=None, suffix=None):
         logger.info(out_str)
     else:
         print(out_str)
+
+
+class Timer:
+    def __init__(self, logger=None, format_str='{:.3f}[s]', prefix=None, suffix=None, sep=' ', verbose=0):
+
+        if prefix:
+            format_str = str(prefix) + sep + format_str
+        if suffix:
+            format_str = format_str + sep + str(suffix)
+        self.format_str = format_str
+        self.logger = logger
+        self.start = None
+        self.end = None
+        self.verbose = verbose
+
+    @property
+    def duration(self):
+        if self.end is None:
+            return 0
+        return self.end - self.start
+
+    def __enter__(self):
+        self.start = time()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.end = time()
+        if self.verbose is None:
+            return
+        out_str = self.format_str.format(self.duration)
+        if self.logger:
+            self.logger.info(out_str)
+        else:
+            print(out_str)
+
+
+def create_block(input_df, blocks, y=None, path=None, task="train"):
+    """[summary]
+
+    Args:
+        input_df (pd.DataFrame): [description]
+        blocks (list): [description]
+        y ([type], optional): [description]. Defaults to None.
+        path ([type], optional): describe path include pkl feature. Defaults to None.
+        task (str, optional): if create test dataframe, describe test. Defaults to "train".
+
+    Returns:
+        [type]: [description]
+    """
+
+    out_df = pd.DataFrame()
+    df_lst = []
+    print("**" * 20 + f"start create block for {task}" + "**" * 20)
+    with Timer(prefix="create test={}".format(task)):
+        for block in blocks:
+            if "WrapperBlock" in str(block.__class__.__name__).split():
+                file_name = os.path.join(
+                    path, f"{task}_{str(block.function.__name__)}.pkl")
+            elif "LabelEncodingBlock" in str(block.__class__.__name__).split():
+                file_name = os.path.join(
+                    path, f"{task}_{block.__class__.__name__}_{str(block.cols)}.pkl")
+            elif "CountEncodingBlock" in str(block.__class__.__name__).split():
+                file_name = os.path.join(
+                    path, f"{task}_{block.__class__.__name__}_{str(block.column)}.pkl")
+            elif "TargetEncodingBlock" in str(block.__class__.__name__).split():
+                file_name = os.path.join(
+                    path, f"{task}_{block.__class__.__name__}_{str(block.cols)}.pkl")
+            elif "AggregationBlock" in str(block.__class__.__name__).split():
+                file_name = os.path.join(
+                    path, f"{task}_{block.__class__.__name__}_{str(block.group_key)}.pkl")
+            else:
+                file_name = os.path.join(
+                    path, f"{task}_{block.__class__.__name__}.pkl")
+            with Timer(prefix="\t- {}".format(str(block))):
+                if os.path.isfile(file_name):
+                    print(f"Already is created {block.__class__.__name__}")
+                    out_i = Util.load(file_name)
+                else:
+                    if task == "train":
+                        out_i = block.fit(input_df)
+                        Util.dump(out_i, file_name)
+                    elif task == "test":
+                        out_i = block.transform(input_df)
+                        Util.dump(out_i, file_name)
+            df_lst.append(out_i)
+            out_df = pd.concat(df_lst, axis=1)
+    return out_df
