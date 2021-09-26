@@ -1,4 +1,5 @@
 import numpy as np
+from util import Util
 
 
 class BaseModel(object):
@@ -58,3 +59,9 @@ class BaseModel(object):
             preds.append(_pred)
         preds = np.mean(preds, axis=0)
         return preds
+
+    def save(self, filepath):
+        return Util.dump(self.model, filepath + ".pkl")
+
+    def load(self, filepath):
+        self.model = Util.load(filepath + ".pkl")
