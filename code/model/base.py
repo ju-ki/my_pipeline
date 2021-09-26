@@ -12,7 +12,7 @@ class BaseModel(object):
     def predict(self, model, valid_x):
         raise NotImplementedError
 
-    def run(self, name, train_x, train_y, cv, metrics, n_splits, seeds):
+    def run(self, name, train_x, train_y, cv, metrics, seeds, logger=None):
         oof_seeds = []
         score_seeds = []
         models = {}
@@ -20,10 +20,10 @@ class BaseModel(object):
             oof = []
             va_idxes = []
             scores = []
-            fold_idx = cv(train_x.values, train_y.values,
-                          n_splits=n_splits, random_state=seed)
 
-            for cv_num, (tr_idx, va_idx) in enumerate(fold_idx):
+            for cv_num, (tr_idx, va_idx) in enumerate(cv):
+                logger.info("*" * 30 + "fold {}".format(cv_num +
+                            1) + "is starting" + "*" * 30)
                 tr_x, va_x = train_x.values[tr_idx], train_x.values[va_idx]
                 tr_y, va_y = train_y.values[tr_idx], train_y.values[va_idx]
                 va_idxes.append(va_idx)
@@ -38,8 +38,12 @@ class BaseModel(object):
 
                 score = metrics(va_y, pred)
                 scores.append(score)
-                print(
+
+                logger.info(
                     f"SEED:{seed}, FOLD:{cv_num} ----------------> val_score:{score:.4f}")
+
+                # print(
+                #     f"SEED:{seed}, FOLD:{cv_num} ----------------> val_score:{score:.4f}")
             va_idxes = np.concatenate(va_idxes)
             oof = np.concatenate(oof)
             order = np.argsort(va_idxes)
@@ -48,7 +52,9 @@ class BaseModel(object):
             score_seeds.append(np.mean(scores))
 
         oof = np.mean(oof_seeds, axis=0)
-        print(f"FINISHED| model:{name} score:{metrics(train_y, oof):.4f}\n")
+        logger.info(
+            f"FINISHED| model:{name} score:{metrics(train_y, oof):.4f}\n")
+        # print(f"FINISHED| model:{name} score:{metrics(train_y, oof):.4f}\n")
         return oof, models
 
     def inference(self, test_x, models):
