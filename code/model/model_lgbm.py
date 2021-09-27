@@ -34,13 +34,15 @@ class MyLGBMModel(BaseModel):
 
     def visualize_importance(self, models, train_feat_df):
         feature_importance_df = pd.DataFrame()
-        for i, model in enumerate(models):
+        num = 0
+        for i, model in models.items():
             _df = pd.DataFrame()
-            _df['feature_importance'] = model.feature_importance()
-            _df['column'] = model.feature_name()
-            _df['fold'] = i + 1
+            _df['feature_importance'] = model.feature_importances_
+            _df['column'] = train_feat_df.columns
+            _df['fold'] = num + 1
             feature_importance_df = pd.concat([feature_importance_df, _df],
                                               axis=0, ignore_index=True)
+            num += 1
 
         order = feature_importance_df.groupby('column')\
             .sum()[['feature_importance']]\

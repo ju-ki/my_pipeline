@@ -2,10 +2,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import lightgbm as lgbm
 from lightgbm import LGBMModel
-from sklearn.metrics import mean_squared_error
-from util import timer
 from lgbm import BaseModel
 
 

@@ -18,7 +18,6 @@ def seed_everything(seed=0):
     random.seed(seed)
     os.environ["PYTHONHASHEDSEED"] = str(seed)
     np.random.seed(seed)
-    tf.set_seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
