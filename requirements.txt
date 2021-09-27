@@ -4,4 +4,3 @@ xfeat
 category_encoders
 texthero
 transformers
-lightgbm --install-option=--gpu
