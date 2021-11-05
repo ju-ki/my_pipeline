@@ -1,13 +1,12 @@
 import datetime
 import logging
-import sys
+import math
 import os
 import numpy as np
 import pandas as pd
 import inspect
 import random
 import torch
-import tensorflow as tf
 import yaml
 import joblib
 from time import time
@@ -44,17 +43,20 @@ class Util:
 
 
 class Logger:
-    def __init__(self, path):
+    """save log"""
+
+    def __init__(self, path, exp_name=None):
         self.general_logger = logging.getLogger(path)
         stream_handler = logging.StreamHandler()
         file_general_handler = logging.FileHandler(
-            os.path.join(path, 'Experiment.log'))
+            os.path.join(path, f'{exp_name}.log'))
         if len(self.general_logger.handlers) == 0:
             self.general_logger.addHandler(stream_handler)
             self.general_logger.addHandler(file_general_handler)
             self.general_logger.setLevel(logging.INFO)
 
     def info(self, message):
+        # display time
         self.general_logger.info(
             '[{}] - {}'.format(self.now_string(), message))
 
@@ -92,6 +94,39 @@ class WrapperBlock(AbstractBaseBlock):
 
     def transform(self, input_df):
         return self.function(input_df)
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+def asMinutes(s):
+    m = math.floor(s / 60)
+    s -= m * 60
+    return '%dm %ds' % (m, s)
+
+
+def timeSince(since, percent):
+    now = time()
+    s = now - since
+    es = s / (percent)
+    rs = es - s
+    return '%s (remain %s)' % (asMinutes(s), asMinutes(rs))
 
 
 def reduce_mem_usage(df):
