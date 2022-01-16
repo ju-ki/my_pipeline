@@ -5,7 +5,6 @@ import seaborn as sns
 import textstat
 from wordcloud import WordCloud
 from sklearn.feature_extraction.text import CountVectorizer
-import japanize_matplotlib
 from matplotlib_venn import venn2
 from sklearn.metrics import confusion_matrix
 from mpl_toolkits.axes_grid1 import make_axes_locatable

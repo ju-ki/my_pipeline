@@ -4,7 +4,7 @@ from sklearn.model_selection import KFold
 
 class GroupKFold:
 
-    # ref:https://zenn.dev/mst8823/articles/cd40cb971f702e masatoさんのベースラインから
+    # ref:https://zenn.dev/mst8823/articles/cd40cb971f702e
 
     def __init__(self, n_splits=5, shuffle=True, random_state=0):
         self.n_splits = n_splits
@@ -25,14 +25,9 @@ class GroupKFold:
             yield train_idx, val_idx
 
 
-def make_gkf(X, y, n_splits=5, random_state=0):
-    #  groupkfoldでcvを渡すための関数
-    #  予めgroup=data[target]としておく必要がある。
+# def make_gkf(X, y, n_splits=5, random_state=0):
+#     #  groupkfoldでcvを渡すための関数
+#     #  予めgroup=data[target]としておく必要がある。
 
-    gkf = GroupKFold(n_splits=n_splits, random_state=random_state)
-    return list(gkf.split(X, y, group))
-
-
-def make_folds(X, y, n_splits=5, random_state=0):
-    kfold = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
-    return list(kfold.split(X, y))
+#     gkf = GroupKFold(n_splits=n_splits, random_state=random_state)
+#     return list(gkf.split(X, y, group))
