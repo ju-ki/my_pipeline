@@ -135,6 +135,6 @@ data/
 .idea/
 saved_models/
 logs/
-notebooks/*
+.notebooks/*
 !notebooks/*.ipynb
 .vector_cache
