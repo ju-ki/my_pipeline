@@ -133,4 +133,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-.code/*.ipynb
+./*.ipynb
+!./eda/*.ipynb
