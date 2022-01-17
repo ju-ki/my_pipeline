@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from .aug_util import rand_bbox, rand_region
 import torch
 import numpy as np
-from .FMix_master.fmix import sample_mask
+from .fmix import sample_mask
 
 
 def mixup(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0):
