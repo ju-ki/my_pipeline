@@ -1,5 +1,7 @@
 import os
+import sys
 import json
+import glob
 import subprocess
 
 
@@ -40,14 +42,69 @@ def set_kaggle_api():
     """
     os.chdir("/content/drive/MyDrive/jukiya/")
     try:
-        subprocess.check_output("pip install kaggle", shell=True)
-        subprocess.check_output("mkdir -p ~/kaggle", shell=True)
-        subprocess.check_output("cp kaggle.json ~/.kaggle/", shell=True)
-        subprocess.check_output(
-            "chmod 600 /root/.kaggle/kaggle.json", shell=True)
-        result = subprocess.run("kaggle competitions list",
-                                shell=True, stdout=subprocess.PIPE)
+        o = subprocess.run("pip install kaggle", shell=True, stdout=subprocess.PIPE, check=True)
+        print(o.stdout.decode("utf-8"))
+    except subprocess.CalledProcessError as e:
+        print("Not kaggle.json file",  e.stderr)
+    try:
+        o = subprocess.run("mkdir -p ~/kaggle", shell=True,  stdout=subprocess.PIPE, check=True)
+    except subprocess.CalledProcessError  as e:
+        print("Error",  e.stderr)
+    try:
+        o = subprocess.run("cp kaggle.json ~/.kaggle/", shell=True, stdout=subprocess.PIPE, check=True)
+    except subprocess.CalledProcessError as e:
+        print("Error cp command:",  e.stderr)
+    try:
+        o = subprocess.run("chmod 600 /root/.kaggle/kaggle.json", shell=True, stdout=subprocess.PIPE, check=True)
+    except subprocess.CalledProcessError as e:
+        print("Error chmod command:",  e.stderr)
+    try:
+        result = subprocess.run("kaggle competitions list", shell=True, stdout=subprocess.PIPE, check=True)
         print(result.stdout.decode("utf-8"))
-    except subprocess.CalledProcessError:
-        print("Error: Pleasse check command or library name")
+    except subprocess.CalledProcessError as e:
+        print("Error kaggle command:", e.stderr)
     os.chdir("/content/")
+
+
+def set_environment(competition_name: str) -> bool:
+    """[summary]
+    主にGoogle Colaboratoryで必要なライブラリやコンペデータのダウンロードをする関数
+    Args:
+        competition_name (str): [Name of the competition you want to download]
+
+    Returns:
+        bool: [current environment]
+    """
+    IN_COLAB = 'google.colab' in sys.modules
+    IN_KAGGLE = 'kaggle_web_client' in sys.modules
+    LOCAL = not (IN_KAGGLE or IN_COLAB)
+    print(f'IN_COLAB:{IN_COLAB}, IN_KAGGLE:{IN_KAGGLE}, LOCAL:{LOCAL}')
+    if IN_COLAB:
+        from google.colab import drive
+        drive.mount('/content/drive')
+        set_kaggle_api()
+        data_path = glob.glob(f"/content/drive/MyDrive/{competition_name}/data/input/*submission.csv")
+        if not os.path.isfile(data_path[0]):
+            os.chdir(data_path)
+            try:
+                result = subprocess.run(f"kaggle competitions download -c {competition_name}", shell=True, stdout=subprocess.PIPE, check=True)
+                print(result.stdout.decode("utf-8"))
+            except subprocess.CalledProcessError as e:
+                print("Error competition name:", e.stderr)
+            try:
+                o = subprocess.run("unzip '*.zip'", shell=True, stdout=subprocess.PIPE, check=True) 
+                print(o.stdout.decode("utf-8"))
+            except subprocess.CalledProcessError as e:
+                print("Error unzip command:", e.stderr)
+            try:
+                o = subprocess.run("rm *.zip", shell=True, stdout=subprocess.PIPE, check=True)
+            except subprocess.CalledProcessError as e:
+                print("Error rm command:", e.stderr)
+        os.chdir(f"/content/drive/MyDrive/{competition_name}/")
+        try:
+            o = subprocess.run("pip install --quiet -r requirements.txt", shell=True, stdout=subprocess.PIPE, check=True)
+            print(o.stdout.decode("utf-8"))
+        except subprocess.CalledProcessError as e:
+            print("Error install library:", e.stderr)
+        os.chdir("/content/")
+    return IN_COLAB, IN_KAGGLE, LOCAL

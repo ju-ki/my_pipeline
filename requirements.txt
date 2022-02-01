@@ -14,4 +14,4 @@ ttach
 ###### Requirements with Version Specifiers ######
 albumentations==1.1.0
 torch_optimizer==0.1.0
-"opencv-python-headless<4.3"
+opencv-python-headless<4.3
