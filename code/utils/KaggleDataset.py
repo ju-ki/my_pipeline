@@ -36,7 +36,7 @@ def set_kaggle_info():
     os.environ["KAGGLE_KEY"] = json_data["key"]
 
 
-def set_kaggle_api():
+def set_kaggle_api(debug_command=False):
     """
      Google Colaboratoryでkaggle apiを使用するための関数
     """
@@ -58,11 +58,12 @@ def set_kaggle_api():
         o = subprocess.run("chmod 600 /root/.kaggle/kaggle.json", shell=True, stdout=subprocess.PIPE, check=True)
     except subprocess.CalledProcessError as e:
         print("Error chmod command:",  e.stderr)
-    try:
-        result = subprocess.run("kaggle competitions list", shell=True, stdout=subprocess.PIPE, check=True)
-        print(result.stdout.decode("utf-8"))
-    except subprocess.CalledProcessError as e:
-        print("Error kaggle command:", e.stderr)
+    if debug_command:
+        try:
+            result = subprocess.run("kaggle competitions list", shell=True, stdout=subprocess.PIPE, check=True)
+            print(result.stdout.decode("utf-8"))
+        except subprocess.CalledProcessError as e:
+            print("Error kaggle command:", e.stderr)
     os.chdir("/content/")
 
 
@@ -73,7 +74,7 @@ def set_environment(competition_name: str) -> bool:
         competition_name (str): [Name of the competition you want to download]
 
     Returns:
-        bool: [current environment]
+        bool: [current environment(colab, kaggle, local)]
     """
     IN_COLAB = 'google.colab' in sys.modules
     IN_KAGGLE = 'kaggle_web_client' in sys.modules
@@ -83,9 +84,10 @@ def set_environment(competition_name: str) -> bool:
         from google.colab import drive
         drive.mount('/content/drive')
         set_kaggle_api()
-        data_path = glob.glob(f"/content/drive/MyDrive/{competition_name}/data/input/*submission.csv")
-        if not os.path.isfile(data_path[0]):
-            os.chdir(data_path)
+        input_dir = f"/content/drive/MyDrive/{competition_name}/data/input/"
+        data_path = glob.glob(os.path.join(input_dir, "*submission.csv"))
+        if len(data_path) == 0 or not os.path.isfile(data_path[0]):
+            os.chdir(input_dir)
             try:
                 result = subprocess.run(f"kaggle competitions download -c {competition_name}", shell=True, stdout=subprocess.PIPE, check=True)
                 print(result.stdout.decode("utf-8"))
