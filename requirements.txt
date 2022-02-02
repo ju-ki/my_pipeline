@@ -15,3 +15,5 @@ ttach
 albumentations==1.1.0
 torch_optimizer==0.1.0
 opencv-python-headless<4.3
+plotly==5.5.0
+pyyaml==5.4.1
