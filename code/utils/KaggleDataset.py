@@ -107,7 +107,7 @@ def set_environment(competition_name: str) -> bool:
         try:
             o = subprocess.run("pip install --quiet -r requirements.txt", shell=True, stdout=subprocess.PIPE, check=True)
             print(o.stdout.decode("utf-8"))
-            print("Completed installed Library!")
+            print("Completed installing Library!")
         except subprocess.CalledProcessError as e:
             print("Error install library:", e.stderr)
         os.chdir("/content/")

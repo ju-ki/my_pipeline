@@ -1,3 +1,4 @@
+from enum import Flag
 import pandas as pd
 import numpy as np
 import category_encoders as ce
@@ -75,20 +76,22 @@ class LabelEncodingBlock(AbstractBaseBlock):
 class CountEncodingBlock(AbstractBaseBlock):
     """CountEncodingを行なう block"""
 
-    def __init__(self, cols: str):
+    def __init__(self, cols: str, is_whole: bool = False):
         self.cols = cols
+        self.is_whole = is_whole
 
     def fit(self, input_df: pd.DataFrame, y=None):
         vc = input_df[self.cols].value_counts()
-        # master_df = read_whole_df()
-        # vc = master_df[self.column].value_counts()
+        if self.is_whole:
+            master_df = input_df
+            vc = master_df[self.column].value_counts()
         self.count_ = vc
         return self.transform(input_df)
 
     def transform(self, input_df):
         out_df = pd.DataFrame()
         out_df[self.cols] = input_df[self.cols].map(self.count_)
-        return out_df.add_prefix('CE_')
+        return out_df.add_prefix('CE_').astype(int)
 
 
 class OneHotEncoding(AbstractBaseBlock):
