@@ -9,7 +9,7 @@ from .base import BaseModel
 class MyLGBMModel(BaseModel):
 
     # ref:https://qiita.com/tubo/items/f83a97f2488cc1f40088 tuboさんのベースラインから
-    #   :https://signate.jp/competitions/402/discussions/lgbm-baseline-except-text-vs-include-text-lb07994-1　masatoさんのベースラインから
+    #     :https://signate.jp/competitions/402/discussions/lgbm-baseline-except-text-vs-include-text-lb07994-1　masatoさんのベースラインから
     def __init__(self, model_params, fit_params):
         self.model_params = model_params
         self.fit_params = fit_params

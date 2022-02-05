@@ -1,7 +1,7 @@
 import requests
 
 
-def send_line_notification(message, token, env):
+def send_line_notification(message: str, token: str, env: str):
     """[summary]
 
     Args:

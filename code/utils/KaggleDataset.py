@@ -48,7 +48,7 @@ def set_kaggle_api(debug_command=False):
         print("Not kaggle.json file",  e.stderr)
     try:
         o = subprocess.run("mkdir -p ~/kaggle", shell=True,  stdout=subprocess.PIPE, check=True)
-    except subprocess.CalledProcessError  as e:
+    except subprocess.CalledProcessError as e:
         print("Error",  e.stderr)
     try:
         o = subprocess.run("cp kaggle.json ~/.kaggle/", shell=True, stdout=subprocess.PIPE, check=True)
@@ -64,6 +64,7 @@ def set_kaggle_api(debug_command=False):
             print(result.stdout.decode("utf-8"))
         except subprocess.CalledProcessError as e:
             print("Error kaggle command:", e.stderr)
+    print("Completed set kaggle api!")
     os.chdir("/content/")
 
 
@@ -106,6 +107,7 @@ def set_environment(competition_name: str) -> bool:
         try:
             o = subprocess.run("pip install --quiet -r requirements.txt", shell=True, stdout=subprocess.PIPE, check=True)
             print(o.stdout.decode("utf-8"))
+            print("Completed installed Library!")
         except subprocess.CalledProcessError as e:
             print("Error install library:", e.stderr)
         os.chdir("/content/")

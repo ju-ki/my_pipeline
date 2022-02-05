@@ -1,20 +1,14 @@
-from catboost import Pool, CatBoostRegressor
+from catboost import Pool, CatBoost
 from base import BaseModel
 
 
-class MyCatRegressorModel(BaseModel):
-
-    """
-    エラーが起こる場合はこちらを参照してください
-    https://catboost.ai/docs/concepts/python-reference_catboostregressor.html
-
-    """
-
-    def __init__(self, model_params):
+class MyCatModel(BaseModel):
+    def __init__(self, model_params, fit_params):
         self.model_params = model_params
+        self.fit_params = fit_params
 
     def build_model(self):
-        model = CatBoostRegressor(**self.model_params)
+        model = CatBoost(self.model_params)
         return model
 
     def fit(self, train_x, train_y, valid_x, valid_y):
@@ -22,11 +16,10 @@ class MyCatRegressorModel(BaseModel):
         valid_pool = Pool(valid_x, valid_y)
         self.model = self.build_model()
         self.model.fit(train_pool,
-                       early_stopping_rounds=50,
                        plot=False,
                        use_best_model=True,
                        eval_set=[valid_pool],
-                       verbose=False,
+                       **self.fit_params
                        )
         return self.model
 

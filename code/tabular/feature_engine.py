@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import category_encoders as ce
 import xfeat
-from util import AbstractBaseBlock
+from utils import AbstractBaseBlock
 
 
 class GetCrossFeatureBlock(AbstractBaseBlock):
@@ -61,7 +61,7 @@ class LabelEncodingBlock(AbstractBaseBlock):
     def __init__(self, cols):
         self.cols = cols
 
-    def fit(self, input_df, y=None):
+    def fit(self, input_df: pd.DataFrame, y=None):
         self.encoder = ce.OrdinalEncoder()
         return self.transform(input_df)
 
@@ -75,11 +75,11 @@ class LabelEncodingBlock(AbstractBaseBlock):
 class CountEncodingBlock(AbstractBaseBlock):
     """CountEncodingを行なう block"""
 
-    def __init__(self, column: str):
-        self.column = column
+    def __init__(self, cols: str):
+        self.cols = cols
 
-    def fit(self, input_df, y=None):
-        vc = input_df[self.column].value_counts()
+    def fit(self, input_df: pd.DataFrame, y=None):
+        vc = input_df[self.cols].value_counts()
         # master_df = read_whole_df()
         # vc = master_df[self.column].value_counts()
         self.count_ = vc
@@ -87,17 +87,17 @@ class CountEncodingBlock(AbstractBaseBlock):
 
     def transform(self, input_df):
         out_df = pd.DataFrame()
-        out_df[self.column] = input_df[self.column].map(self.count_)
+        out_df[self.column] = input_df[self.cols].map(self.count_)
         return out_df.add_prefix('CE_')
 
 
 class OneHotEncoding(AbstractBaseBlock):
-    def __init__(self, column, min_count=30):
-        self.column = column
+    def __init__(self, cols, min_count=30):
+        self.column = cols
         self.min_count = min_count
 
     def fit(self, input_df, y=None):
-        x = input_df[self.column]
+        x = input_df[self.cols]
         vc = x.value_counts()
         categories = vc[vc > self.min_count].index
         self.categories_ = categories
@@ -105,11 +105,11 @@ class OneHotEncoding(AbstractBaseBlock):
         return self.transform(input_df)
 
     def transform(self, input_df):
-        x = input_df[self.column]
+        x = input_df[self.cols]
         cat = pd.Categorical(x, categories=self.categories_)
         out_df = pd.get_dummies(cat)
         out_df.columns = out_df.columns.tolist()
-        return out_df.add_prefix(f'{self.column}=').astype("category")
+        return out_df.add_prefix(f'{self.cols}=').astype("category")
 
 
 def max_min(x):

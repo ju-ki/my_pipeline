@@ -1,7 +1,8 @@
 import numpy as np
+import pandas as pd
 
 
-def reduce_mem_usage(df):
+def reduce_mem_usage(df: pd.DataFrame) -> pd.DataFrame:
     """ iterate through all the columns of a dataframe and modify the data type
         to reduce memory usage.        
     """

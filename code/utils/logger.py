@@ -1,3 +1,4 @@
+from cmath import exp
 import os
 import datetime
 import logging
@@ -6,7 +7,9 @@ import logging
 class Logger:
     """save log"""
 
-    def __init__(self, path, exp_name=None):
+    def __init__(self, path, exp_name: str):
+        if exp_name is None:
+            exp_name = "_baseline"
         self.general_logger = logging.getLogger(path)
         stream_handler = logging.StreamHandler()
         file_general_handler = logging.FileHandler(

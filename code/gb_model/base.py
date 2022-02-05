@@ -1,6 +1,11 @@
+import os
+import sys
 import numpy as np
-from tqdm.notebook import tqdm
-from util import Util
+import pandas as pd
+from typing import Union
+from tqdm.auto import tqdm
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.util import decorate, Util
 
 
 class BaseModel(object):
@@ -13,50 +18,48 @@ class BaseModel(object):
     def predict(self, model, valid_x):
         raise NotImplementedError
 
-    def run(self, name, train_x, train_y, cv, metrics, seeds, logger=None, filepath="./"):
-        oof_seeds = []
-        score_seeds = []
+    def run(self, name: str, train_x: pd.DataFrame, train_y: Union[pd.Series, np.ndarray], cv, metrics, logger=None, output_dir: str = "./") -> np.ndarray:
         models = {}
-        for seed in seeds:
-            oof = []
-            va_idxes = []
-            scores = []
+        oof = []
+        va_idxes = []
+        scores = []
 
-            for cv_num, (tr_idx, va_idx) in tqdm(enumerate(cv)):
-                logger.info("*" * 30 + "fold {}".format(cv_num +
-                            1) + "is starting" + "*" * 30)
-                tr_x, va_x = train_x.values[tr_idx], train_x.values[va_idx]
-                tr_y, va_y = train_y.values[tr_idx], train_y.values[va_idx]
-                va_idxes.append(va_idx)
+        for cv_num, (tr_idx, va_idx) in tqdm(enumerate(cv)):
+            if logger is None:
+                print(decorate("fold {}".format(cv_num + 1) + " is starting"))
+            else:
+                logger.info(decorate("fold {}".format(cv_num + 1) + " is starting"))
+            tr_x, va_x = train_x.values[tr_idx], train_x.values[va_idx]
+            tr_y, va_y = train_y.values[tr_idx], train_y.values[va_idx]
+            va_idxes.append(va_idx)
 
-                model = self.build_model()
-                model = self.fit(tr_x, tr_y, va_x, va_y)
-                model_name = f"{name}_SEED{seed}_FOLD{cv_num}_model"
-                self.save(filepath)
-                models[model_name] = model
+            model = self.build_model()
+            model = self.fit(tr_x, tr_y, va_x, va_y)
+            model_name = f"{name}_FOLD{cv_num}_model"
+            self.save(output_dir, model_name)
+            models[model_name] = model
 
-                pred = self.predict(self.model, va_x)
-                oof.append(pred)
+            pred = self.predict(self.model, va_x)
+            oof.append(pred)
 
-                score = metrics(va_y, pred)
-                scores.append(score)
+            score = metrics(va_y, pred)
+            scores.append(score)
+            if logger is None:
+                print(f"FOLD:{cv_num} ----------------> val_score:{score:.4f}")
+            else:
+                logger.info(f"FOLD:{cv_num} ----------------> val_score:{score:.4f}")
 
-                logger.info(
-                    f"SEED:{seed}, FOLD:{cv_num} ----------------> val_score:{score:.4f}")
+        va_idxes = np.concatenate(va_idxes)
+        oof = np.concatenate(oof)
+        order = np.argsort(va_idxes)
+        oof = oof[order]
+        if logger is None:
+            print(f"FINISHED| model:{name} score:{metrics(train_y[va_idxes], oof):.4f}\n")
+        else:
+            logger.info(f"FINISHED| model:{name} score:{metrics(train_y[va_idxes], oof):.4f}\n")
+        return oof, models, va_idxes
 
-            va_idxes = np.concatenate(va_idxes)
-            oof = np.concatenate(oof)
-            order = np.argsort(va_idxes)
-            oof = oof[order]
-            oof_seeds.append(oof)
-            score_seeds.append(np.mean(scores))
-
-        oof = np.mean(oof_seeds, axis=0)
-        logger.info(
-            f"FINISHED| model:{name} score:{metrics(train_y, oof):.4f}\n")
-        return oof, models
-
-    def inference(self, test_x, models):
+    def inference(self, test_x: pd.DataFrame, models) -> np.ndarray:
         preds = []
         for name, est in models.items():
             print(f"{name} ------->")
@@ -65,8 +68,11 @@ class BaseModel(object):
         preds = np.mean(preds, axis=0)
         return preds
 
-    def save(self, filepath):
-        return Util.dump(self.model, filepath + ".pkl")
+    def save(self, filepath: str, model_name: str):
+        return Util.dump(self.model, filepath + model_name + ".pkl")
 
-    def load(self, filepath):
-        self.model = Util.load(filepath + ".pkl")
+    def load(self, filepath: str, model_name: str):
+        self.model = Util.load(filepath + model_name + ".pkl")
+
+    def make_oof(self, df: pd.DataFrame, filepath: str, is_pickle=False):
+        return Util.dump_df(df, filepath + "oof", is_pickle=is_pickle)
