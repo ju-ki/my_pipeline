@@ -4,7 +4,7 @@ import pandas as pd
 from typing import List, Optional
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.timer import Timer
-from utils.util import Util
+from utils.util import Util, decorate
 
 
 class AbstractBaseBlock:
@@ -31,7 +31,9 @@ def run_blocks(input_df: pd.DataFrame, blocks: List, y=None, preprocess_block=Op
     _input_df = input_df.copy()
 
     if not os.path.isdir(filepath + "features/"):
-                    os.makedirs(filepath + "features")
+        os.makedirs(filepath + "features")
+                    
+    print(decorate(f"start create block for {task}"))
 
     with Timer(logger=logger, prefix=f'create {task} block'):
         for block in blocks:
