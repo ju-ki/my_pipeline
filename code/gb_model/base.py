@@ -2,7 +2,6 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-from typing import Union
 from tqdm.auto import tqdm
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.util import decorate, Util
@@ -18,7 +17,7 @@ class BaseModel(object):
     def predict(self, model, valid_x):
         raise NotImplementedError
 
-    def run(self, name: str, train_x: pd.DataFrame, train_y: Union[pd.Series, np.ndarray], cv, metrics, logger=None, output_dir: str = "./") -> np.ndarray:
+    def run(self, name: str, train_x: pd.DataFrame, train_y: np.ndarray, cv, metrics, logger=None, output_dir: str = "./") -> np.ndarray:
         models = {}
         oof = []
         va_idxes = []
@@ -30,7 +29,7 @@ class BaseModel(object):
             else:
                 logger.info(decorate("fold {}".format(cv_num + 1) + " is starting"))
             tr_x, va_x = train_x.values[tr_idx], train_x.values[va_idx]
-            tr_y, va_y = train_y.values[tr_idx], train_y.values[va_idx]
+            tr_y, va_y = train_y[tr_idx], train_y[va_idx]
             va_idxes.append(va_idx)
 
             model = self.build_model()
