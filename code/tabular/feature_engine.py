@@ -1,8 +1,9 @@
-from enum import Flag
 import pandas as pd
 import numpy as np
 import category_encoders as ce
 import xfeat
+from typing import List, Union, Optional
+from sklearn.model_selection import KFold
 from .utils import AbstractBaseBlock
 
 
@@ -96,7 +97,7 @@ class CountEncodingBlock(AbstractBaseBlock):
 
 class OneHotEncoding(AbstractBaseBlock):
     def __init__(self, cols, min_count=30):
-        self.column = cols
+        self.cols = cols
         self.min_count = min_count
 
     def fit(self, input_df, y=None):
@@ -133,49 +134,32 @@ class AggregationBlock(AbstractBaseBlock):
       agg_methods:どのような方法で集約するか. デフォルトはmax, min, meanの三つ
     """
 
-    def __init__(self, group_key, group_values, agg_methods=["max", "min", "mean", "std", "median", max_min, q75_q25]):
+    def __init__(self, group_key: str, group_values: List[str], agg_methods=None):
         self.group_key = group_key
         self.group_values = group_values
         self.agg_methods = agg_methods
+        if self.agg_methods is None:
+            self.agg_methods = ["max", "min", "mean"]
 
-    def fit(self, input_df):
-        self.agg_df, self.agg_col = xfeat.aggregation(input_df,
-                                                      agg_methods=self.agg_methods,
-                                                      group_key=self.group_key,
-                                                      group_values=self.group_values)
-        return self.transform(input_df)
+    def fit(self, input_df: pd.DataFrame) -> pd.DataFrame:
+        out_df = pd.DataFrame()
+        self.agg_df, self.agg_col = xfeat.aggregation(
+            input_df=input_df,
+            group_key=self.group_key,
+            group_values=self.group_values,
+            agg_methods=self.agg_methods
+        )
 
-    def transform(self, input_df):
+        out_df = self.agg_df[self.agg_col]
+        return out_df
+
+    def transform(self, input_df: pd.DataFrame) -> pd.DataFrame:
         out_df = pd.DataFrame()
         out_df = self.agg_df
         return out_df
 
 
-# class AggregationBlock(AbstractBaseBlock):
-#     """
-#     集約変数を作成するブロック
-
-#     cols:
-#       group_key:元になる変数:age, country etc..
-#       group_values:集約を行う対象の変数:n_items etc..
-#       agg_methods:どのような方法で集約するか. デフォルトはmax, min, meanの三つ
-#     """
-
-#     def __init__(self, group_key, group_values, agg_methods=["max", "min", "mean", "std", max_min, q75_q25]):
-#         self.group_key = group_key
-#         self.group_values = group_values
-#         self.agg_methods = agg_methods
-
-#     def transform(self, input_df):
-#         self.agg_df, self.agg_col = xfeat.aggregation(input_df,
-#                                                       agg_methods=self.agg_methods,
-#                                                       group_key=self.group_key,
-#                                                       group_values=self.group_values)
-
-#         out_df = pd.DataFrame()
-#         out_df = self.agg_df
-#         return out_df[self.agg_col]
-
+#
 
 class RankingBlock(AbstractBaseBlock):
     def __init__(self, group_key, group_values):
@@ -220,6 +204,52 @@ class TargetEncodingBlock(AbstractBaseBlock):
         out_df = pd.DataFrame()
         out_df = self.encoder.transform(input_df[self.cols])
         return out_df.add_prefix("TE_")
+
+
+class KFoldTargetEncodingBlock(AbstractBaseBlock):
+    def __init__(self, cols: str, target: str, n_fold: int = 5, verbosity=True):
+        """_summary_
+        Refs:
+            https://www.guruguru.science/competitions/16/discussions/9e36d002-3ac2-4a96-8336-d407cad7a720/
+            https://qiita.com/ground0state/items/6778dc2132abdabaf914
+        Args:
+            cols (str): col_name
+            target (str): target feature
+            n_fold (int, optional): num of fold Defaults to 5.
+            verbosity (bool, optional): whether display correlation between new feature and target. Defaults to True.
+        """
+        self.cols = cols
+        self.target = target
+        self.n_fold = n_fold
+        self.verbosity = verbosity
+
+    def create_mapping(self, input_df, y=None):
+        self.mapping_df = {}
+        self.mean_of_target = input_df[self.target].mean()
+        X = input_df[self.cols]
+        y = input_df[self.target]
+        out_df = pd.DataFrame()
+        oof = np.zeros_like(X, dtype=np.float)
+        kfold = KFold(n_splits=self.n_fold, shuffle=False)
+        for trn_idx, val_idx in kfold.split(X):
+            _df = y[trn_idx].groupby(X[trn_idx]).mean()
+            _df = _df.reindex(X.unique())
+            _df = _df.fillna(_df.mean())
+            oof[val_idx] = input_df[self.cols][val_idx].map(_df.to_dict())
+        out_df[self.cols] = oof
+        self.mapping_df[self.cols] = y.groupby(X).mean()
+        if self.verbosity:
+            print(f"Correlation between KFold_TE_{self.cols} and {self.target} is {np.corrcoef(y, oof)[0][1] : .5f}")
+        return out_df
+
+    def fit(self, input_df: pd.DataFrame, y=None) -> pd.DataFrame:
+        out_df = self.create_mapping(input_df)
+        return out_df.add_prefix("KFold_TE_")
+
+    def transform(self, input_df: pd.DataFrame) -> pd.DataFrame:
+        out_df = pd.DataFrame()
+        out_df[self.cols] = input_df[self.cols].map(self.mapping_df[self.cols]).fillna(self.mean_of_target)
+        return out_df.add_prefix("KFold_TE_")
 
 
 class GroupingEngine:
