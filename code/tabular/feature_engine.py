@@ -77,15 +77,16 @@ class LabelEncodingBlock(AbstractBaseBlock):
 class CountEncodingBlock(AbstractBaseBlock):
     """CountEncodingを行なう block"""
 
-    def __init__(self, cols: str, is_whole: bool = False):
+    def __init__(self, cols: str, is_whole: bool = False, master_df: pd.DataFrame = None):
         self.cols = cols
         self.is_whole = is_whole
+        if self.is_whole:
+            self.master_df = master_df
 
     def fit(self, input_df: pd.DataFrame, y=None):
         vc = input_df[self.cols].value_counts()
         if self.is_whole:
-            master_df = input_df
-            vc = master_df[self.column].value_counts()
+            vc = self.master_df[self.column].value_counts()
         self.count_ = vc
         return self.transform(input_df)
 
