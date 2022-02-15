@@ -92,7 +92,7 @@ class CountEncodingBlock(AbstractBaseBlock):
     def transform(self, input_df):
         out_df = pd.DataFrame()
         out_df[self.cols] = input_df[self.cols].map(self.count_)
-        return out_df.add_prefix('CE_').astype(int)
+        return out_df.add_prefix('CE_')
 
 
 class OneHotEncoding(AbstractBaseBlock):
