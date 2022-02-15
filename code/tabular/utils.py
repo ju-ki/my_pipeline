@@ -46,7 +46,7 @@ def run_blocks(input_df: pd.DataFrame, blocks: List, y=None, preprocess_block=Op
                     out_i = Util.load(file_name)
                 else:
                     if task == "train":
-                        out_i = block.fit(_input_df, y=y)
+                        out_i = block.fit(_input_df)
                         Util.dump(out_i, file_name)
                     else:
                         out_i = block.transform(_input_df)
