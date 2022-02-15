@@ -28,8 +28,8 @@ class BaseModel(object):
                 print(decorate("fold {}".format(cv_num + 1) + " is starting"))
             else:
                 logger.info(decorate("fold {}".format(cv_num + 1) + " is starting"))
-            tr_x, va_x = train_x.values[tr_idx], train_x.values[va_idx]
-            tr_y, va_y = train_y[tr_idx], train_y[va_idx]
+            tr_x, va_x = train_x.loc[tr_idx], train_x.loc[va_idx]
+            tr_y, va_y = train_y.loc[tr_idx], train_y.loc[va_idx]
             va_idxes.append(va_idx)
 
             model = self.build_model()
@@ -53,9 +53,9 @@ class BaseModel(object):
         order = np.argsort(va_idxes)
         oof = oof[order]
         if logger is None:
-            print(f"FINISHED| model:{name} score:{metrics(train_y[va_idxes], oof):.4f}\n")
+            print(f"FINISHED| model:{name} score:{metrics(train_y, oof):.4f}\n")
         else:
-            logger.info(f"FINISHED| model:{name} score:{metrics(train_y[va_idxes], oof):.4f}\n")
+            logger.info(f"FINISHED| model:{name} score:{metrics(train_y, oof):.4f}\n")
         return oof, models, va_idxes
 
     def inference(self, test_x: pd.DataFrame, models) -> np.ndarray:
