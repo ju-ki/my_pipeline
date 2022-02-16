@@ -1,5 +1,5 @@
 from sklearn.linear_model import Ridge
-from base import BaseModel
+from .base import BaseModel
 
 
 class MyRidge(BaseModel):

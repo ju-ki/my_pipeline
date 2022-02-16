@@ -1,5 +1,5 @@
 from xgboost import XGBModel
-from base import BaseModel
+from .base import BaseModel
 
 
 class MyXGBModel(BaseModel):

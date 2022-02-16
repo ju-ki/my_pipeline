@@ -1,5 +1,5 @@
 from catboost import Pool, CatBoost
-from base import BaseModel
+from .base import BaseModel
 
 
 class MyCatModel(BaseModel):
