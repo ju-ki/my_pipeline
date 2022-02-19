@@ -17,5 +17,5 @@ class MyRidge(BaseModel):
 
         return self.model
 
-    def predict(self, model, valid_x):
-        return model.predict(valid_x)
+    def predict(self, est, valid_x):
+        return est.predict(valid_x)

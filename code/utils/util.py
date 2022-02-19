@@ -13,6 +13,10 @@ class Util:
     @classmethod
     def load(cls, path):
         return joblib.load(path)
+    
+    @classmethod
+    def save_csv(cls, df, path, name):
+        df.to_csv(path + name + ".csv", index=False)
 
     @classmethod
     def dump_df(cls, df, path, is_pickle=False):

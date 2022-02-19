@@ -2,12 +2,17 @@ import os
 import sys
 import numpy as np
 import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from typing import Union, List, Tuple
+from IPython.display import display
 from tqdm.auto import tqdm
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.util import decorate, Util
 
 
 class BaseModel(object):
+
     def build_model(self, **kwargs):
         raise NotImplementedError
 
@@ -17,11 +22,57 @@ class BaseModel(object):
     def predict(self, model, valid_x):
         raise NotImplementedError
 
-    def run(self, name: str, train_x: pd.DataFrame, train_y: np.ndarray, cv, metrics, logger=None, output_dir: str = "./") -> np.ndarray:
-        models = {}
-        oof = []
+    def run(self, name: str, train_x: pd.DataFrame, train_y: Union[pd.Series, np.ndarray], cv: List[Tuple], metrics, logger = None, output_dir: str = "./"):
+        """
+        Parameters
+        ---------------------------
+        name: str
+          experiment name
+        train_x: pd.DataFrame
+           train set
+        train_y: pd.Series or np.np.ndarray
+          train target
+        cv: List[Tuple]
+          set cross validation
+        metrics:
+          set metrics for evaluate score
+         logger:
+          output log files
+          None -> print log
+         output_dir: str
+          output model as pkl
+
+        Example
+        -------------------------------
+
+          def make_kfold(X, y):
+              kf = KFold(n_splits=5, shuffle=True, random_state=42)
+              return list(kf.split(X, y))
+
+         def score_rmse(y_true, y_pred):
+             score = mean_square_error(y_true, y_pred, is_squared=False)
+             return score
+
+        cv = make_kfold(X, y)
+        ### set params for model
+        my_model = MyModel(model_params=lgbm_params, fit_params=fit_params)
+
+        ### learning
+        my_model.run(name='baseline', train_x=X, train_y=y, cv=cv, metrics=score_rmse, logger=None, output_dir="./)
+
+        ### make oof
+        my_model.make_oof()
+
+        """
+
+        self.name = name
+        self.output_dir = output_dir
+        self.train_y = train_y
+        self.models = {}
+        self.oof = []
         va_idxes = []
         scores = []
+
 
         for cv_num, (tr_idx, va_idx) in tqdm(enumerate(cv)):
             if logger is None:
@@ -29,43 +80,41 @@ class BaseModel(object):
             else:
                 logger.info(decorate("fold {}".format(cv_num + 1) + " is starting"))
             tr_x, va_x = train_x.loc[tr_idx], train_x.loc[va_idx]
-            tr_y, va_y = train_y.loc[tr_idx], train_y.loc[va_idx]
+            tr_y, va_y = self.train_y[tr_idx], self.train_y[va_idx]
             va_idxes.append(va_idx)
 
             model = self.build_model()
             model = self.fit(tr_x, tr_y, va_x, va_y)
             model_name = f"{name}_FOLD{cv_num}_model"
-            self.save(output_dir, model_name)
-            models[model_name] = model
+            self.save(self.output_dir, model_name)
+            self.models[model_name] = model
 
-            pred = self.predict(self.model, va_x)
-            oof.append(pred)
+            pred = self.predict(model, va_x)
+            self.oof.append(pred)
 
             score = metrics(va_y, pred)
             scores.append(score)
             if logger is None:
-                print(f"FOLD:{cv_num} ----------------> val_score:{score:.4f}")
+                print(f"FOLD:{cv_num + 1} ----------------> val_score:{score:.4f}")
             else:
-                logger.info(f"FOLD:{cv_num} ----------------> val_score:{score:.4f}")
+                logger.info(f"FOLD:{cv_num + 1} ----------------> val_score:{score:.4f}")
 
         va_idxes = np.concatenate(va_idxes)
-        oof = np.concatenate(oof)
+        self.oof = np.concatenate(self.oof)
         order = np.argsort(va_idxes)
-        oof = oof[order]
+        self.oof = self.oof[order]
         if logger is None:
-            print(f"FINISHED| model:{name} score:{metrics(train_y, oof):.4f}\n")
+            print(f"FINISHED| model:{name} score:{metrics(self.train_y, self.oof):.4f}\n")
         else:
-            logger.info(f"FINISHED| model:{name} score:{metrics(train_y, oof):.4f}\n")
-        return oof, models, va_idxes
+            logger.info(f"FINISHED| model:{name} score:{metrics(self.train_y, self.oof):.4f}\n")
 
-    def inference(self, test_x: pd.DataFrame, models) -> np.ndarray:
-        preds = []
-        for name, est in models.items():
+    def inference(self, test_x: Union[pd.DataFrame, np.ndarray]) -> np.ndarray:
+        self.preds = []
+        for name, est in self.models.items():
             print(f"{name} ------->")
-            _pred = est.predict(test_x)
-            preds.append(_pred)
-        preds = np.mean(preds, axis=0)
-        return preds
+            _pred = self.predict(est, test_x)
+            self.preds.append(_pred)
+        self.preds = np.mean(self.preds, axis=0)
 
     def save(self, filepath: str, model_name: str):
         return Util.dump(self.model, filepath + model_name + ".pkl")
@@ -73,5 +122,26 @@ class BaseModel(object):
     def load(self, filepath: str, model_name: str):
         self.model = Util.load(filepath + model_name + ".pkl")
 
-    def make_oof(self, df: pd.DataFrame, filepath: str, is_pickle=False):
-        return Util.dump_df(df, filepath + "oof", is_pickle=is_pickle)
+    def make_oof(self):
+        self.oof = pd.DataFrame({
+            "oof": self.oof
+        })
+        return Util.save_csv(self.oof, self.output_dir, self.name + "oof")
+
+    def make_submission(self):
+        self.sub_df = pd.DataFrame()
+        self.sub_df["target"] = self.preds
+        return Util.save_csv(self.sub_df, self.output_dir,  self.name + "sub")
+
+    def plot_oof__pred_target(self):
+        sns.set()
+        plt.figure(figsize=(20, 7))
+        sns.distplot(self.train_y, label="True Target")
+        sns.distplot(self.oof.values, label=self.name + "_oof")
+        sns.distplot(self.preds, label=self.name + "_pred")
+        plt.legend()
+        plt.show()
+
+    def debug_oof_pred(self):
+        display(self.oof.head())
+        display(self.sub_df.head())
