@@ -35,7 +35,7 @@ class BaseModel(object):
         cv: List[Tuple]
           set cross validation
         metrics:
-          set metrics for evaluate score
+          set metrics for evaluating score
          logger:
           output log files
           None -> print log

@@ -12,7 +12,7 @@ from .base import BaseModel
 from utils.util import decorate
 
 
-class MyTabNetModel(BaseModel):
+class MyTabNetRegressorModel(BaseModel):
     def __init__(self, model_params, fit_params: Optional[Dict]):
         self.model_params = model_params
         self.fit_params = fit_params
