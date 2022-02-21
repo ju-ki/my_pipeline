@@ -1,12 +1,14 @@
+from typing import Optional, Dict
 from xgboost import XGBModel
 from .base import BaseModel
 
 
 class MyXGBModel(BaseModel):
-    def __init__(self, model_params, fit_params):
+    def __init__(self, model_params, fit_params=Optional[Dict]):
         self.model_params = model_params
         self.fit_params = fit_params
-        self.model = None
+        if self.fit_params is None:
+            self.fit_params = {}
 
     def build_model(self):
         model = XGBModel(**self.model_params)
@@ -20,5 +22,5 @@ class MyXGBModel(BaseModel):
                        )
         return self.model
 
-    def predict(self, model, valid_x):
-        return model.predict(valid_x)
+    def predict(self, est, valid_x):
+        return est.predict(valid_x)
