@@ -8,6 +8,28 @@ from .base import BaseModel
 
 
 class MyLGBMModel(BaseModel):
+    """
+    Parameters
+    -----------
+    ref: https://lightgbm.readthedocs.io/en/latest/Parameters.html
+    model_params:
+        objective: default=regression mae rmse poison binary multiclass cross_entropy
+        boosting: default=gbdt gbdt rf dart goss
+        learning_rate: default=0.1
+        num_leaves: default=31
+        num_threads: default=0
+        num_class:default=1
+        max_depth:default=-1
+        bagging_fraction:default=1.0
+        feature_fraction:default=1.0 alias=>colsample_bytree
+        lambda_l1:default=0.0
+        lambda_l2:default=0.0
+        is_unbalance:default=False
+    fit_params:
+        verbose: default=1
+        early_stopping_rounds:None
+        metric:mae mse rsme poison auc average_precision binary_logloss binary_error multi_logloss cross_entropy
+    """
 
     # ref:https://qiita.com/tubo/items/f83a97f2488cc1f40088 tuboさんのベースラインから
     #     :https://signate.jp/competitions/402/discussions/lgbm-baseline-except-text-vs-include-text-lb07994-1　masatoさんのベースラインから

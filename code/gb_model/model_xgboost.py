@@ -4,6 +4,21 @@ from .base import BaseModel
 
 
 class MyXGBModel(BaseModel):
+    """
+    Parameters
+    --------------
+    ref : https://xgboost.readthedocs.io/en/stable/parameter.html
+    model_params:
+       objective: reg:squarederror reg:logistic binary:logistic multi:softmax
+       max_depth: default=6
+       learning_rate: default=0.3
+       booster: defualt=gbtree, alternative=> gblinear or dart.
+    
+    fit_params:
+       eval_metric: rmse mae logloss mlogloss auc
+       early_stopping_rounds: default=None
+       verbose: default=1
+    """
     def __init__(self, model_params, fit_params=Optional[Dict]):
         self.model_params = model_params
         self.fit_params = fit_params

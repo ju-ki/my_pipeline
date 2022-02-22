@@ -7,6 +7,19 @@ from .base import BaseModel
 
 
 class MyCatModel(BaseModel):
+    """
+    Parameters
+    -----------
+    ref: https://catboost.ai/en/docs/references/training-parameters/
+    model_params:
+        learning_rate:default=0.03
+        depth:my_default=6
+        random_seed:default=0
+        prediction_type:
+    fit_params:
+        verbose:default=1
+        early_stopping_rounds:default=None
+    """
     def __init__(self, model_params, fit_params: Optional[Dict], categorical_features: Optional[Union[List[str], List[int]]]):
         self.model_params = model_params
         self.fit_params = fit_params

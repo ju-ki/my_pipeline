@@ -14,6 +14,10 @@ class AbstractBaseBlock:
     def transform(self, input_df: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError()
 
+    def fit_transform(self, input_df: pd.DataFrame, y=None):
+        self.fit(input_df, y=y)
+        return self.transform(input_df)
+
 
 class WrapperBlock(AbstractBaseBlock):
     def __init__(self, function):
@@ -25,6 +29,19 @@ class WrapperBlock(AbstractBaseBlock):
 
 def run_blocks(input_df: pd.DataFrame, blocks: List, y=None, preprocess_block=Optional[List], 
                logger=None, filepath: str = "./", task: str = "train") -> pd.DataFrame:
+    """
+    Args:
+        input_df (pd.DataFrame): original DataFrame
+        blocks (List): function block
+        y (_type_, optional): _description_. Defaults to None.
+        preprocess_block (_type_, optional): if need preprocessing for example fillna, you need set function of preporcessing
+        logger (_type_, optional): if is not None, output log fie
+        filepath (str, optional): output feature block as pkl. Defaults to "./".
+        task (str, optional): _description_. Defaults to "train".
+
+    Returns:
+        pd.DataFrame: feature engined feature
+    """
     out_df = pd.DataFrame()
     if not preprocess_block is None:
         input_df = preprocess_block(input_df)

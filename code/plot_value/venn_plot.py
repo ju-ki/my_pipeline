@@ -3,26 +3,24 @@ import matplotlib.pyplot as plt
 from typing import List
 from matplotlib_venn import venn2
 
-
-def create_value_count_plot(input_df: pd.DataFrame, col_list: List[str], n=5):
+def plot_intersection(left: pd.DataFrame, right: pd.DataFrame, target_column: str, set_labels: List[str] = None, ax=None):
     """
-    指定したカラム(objectやcategory)データの数をプロットする関数
-
-    args:
-       input_df : pd.DataFrame
-       col_list : list
-       n : Argument to specify how many unique values should be plotted (default=5)
+    Paramters
+    ----------
+    left: pd.DataFrame
+    right: pd.DataFrame
+    column:
+    
+    ### Example use:
+        target_columns = train_df.columns.tolist()
+        n_cols = 5(example num)
+        n_rows = - (- len(target_columns) // n_cols)
+        fig, axes = plt.subplots(figsize=(4 * n_cols, 3 * n_rows), ncols=n_cols, nrows=n_rows)
+        
+        for c, ax in zip(target_columns, np.ravel(axes)):
+            plot_intersection(train_df, test_df, target_column=c, ax=ax)
     """
-    for col in col_list:
-        plt.subplots(figsize=(8, 8))
-        print(f"{col}: \n {input_df[col].value_counts()[:n]}")
-        input_df[col].value_counts().plot.bar()
-        plt.show()
-        print("***" * 40)
-
-
-def plot_intersection(left, right, column, set_labels, ax=None):
-    left_set = set(left[column])
-    right_set = set(right[column])
+    left_set = set(left[target_column])
+    right_set = set(right[target_column])
     venn2(subsets=(left_set, right_set), set_labels=set_labels, ax=ax)
     return ax
