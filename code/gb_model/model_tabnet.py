@@ -43,17 +43,14 @@ class MyTabNetRegressorModel(BaseModel):
         pretrain_ratio
         
     ### Example use:
-        nunique = train_feat_df.nunique()
-        types = train_feat_df.dtypes
-
-        categorical_columns = []
-        categorical_dims = {}
-        train_feat_df["is_train"] = 1
-        test_feat_df["is_train"] = 0
-
-        all_df = pd.concat([train_feat_df, test_feat_df])
-
-        for col in tqdm(train_feat_df.drop(["is_train"], axis=1).columns):
+        >>>nunique = train_feat_df.nunique()
+        >>>types = train_feat_df.dtypes
+        >>>categorical_columns = []
+        >>>categorical_dims = {}
+        >>>train_feat_df["is_train"] = 1
+        >>>test_feat_df["is_train"] = 0
+        >>>all_df = pd.concat([train_feat_df, test_feat_df])
+        >>for col in train_feat_df.drop(["is_train"], axis=1).columns:
             if str(types[col]) == 'category' or nunique[col] < 200:
                 l_enc = LabelEncoder()
                 all_df[col] = l_enc.fit_transform(all_df[col].values)
@@ -61,8 +58,8 @@ class MyTabNetRegressorModel(BaseModel):
                 categorical_columns.append(col)
                 categorical_dims[col] = len(l_enc.classes_ )
                 
-        cat_idx = [i for i, f in enumerate(train_feat_df.columns.tolist()) if f in categorical_columns]
-        cat_dims = [categorical_dims[f] for i, f in enumerate(train_feat_df.columns.tolist()) if f in categorical_columns]
+        >>>cat_idx = [i for i, f in enumerate(train_feat_df.columns.tolist()) if f in categorical_columns]
+        >>>cat_dims = [categorical_dims[f] for i, f in enumerate(train_feat_df.columns.tolist()) if f in categorical_columns]
     """
     def __init__(self, model_params, fit_params: Optional[Dict]):
         self.model_params = model_params
@@ -91,7 +88,7 @@ class MyTabNetRegressorModel(BaseModel):
         return preds
 
 
-class MyTabNeClassifierModel(BaseModel):
+class MyTabNetClassifierModel(BaseModel):
     """
     Paramters
     ---------
@@ -122,17 +119,14 @@ class MyTabNeClassifierModel(BaseModel):
         pretrain_ratio
         
     ### Example use:
-        nunique = train_feat_df.nunique()
-        types = train_feat_df.dtypes
-
-        categorical_columns = []
-        categorical_dims = {}
-        train_feat_df["is_train"] = 1
-        test_feat_df["is_train"] = 0
-
-        all_df = pd.concat([train_feat_df, test_feat_df])
-
-        for col in tqdm(train_feat_df.drop(["is_train"], axis=1).columns):
+        >>>nunique = train_feat_df.nunique()
+        >>>types = train_feat_df.dtypes
+        >>>categorical_columns = []
+        >>>categorical_dims = {}
+        >>>train_feat_df["is_train"] = 1
+        >>>test_feat_df["is_train"] = 0
+        >>>all_df = pd.concat([train_feat_df, test_feat_df])
+        >>for col in train_feat_df.drop(["is_train"], axis=1).columns:
             if str(types[col]) == 'category' or nunique[col] < 200:
                 l_enc = LabelEncoder()
                 all_df[col] = l_enc.fit_transform(all_df[col].values)
@@ -140,8 +134,8 @@ class MyTabNeClassifierModel(BaseModel):
                 categorical_columns.append(col)
                 categorical_dims[col] = len(l_enc.classes_ )
                 
-        cat_idx = [i for i, f in enumerate(train_feat_df.columns.tolist()) if f in categorical_columns]
-        cat_dims = [categorical_dims[f] for i, f in enumerate(train_feat_df.columns.tolist()) if f in categorical_columns]
+        >>>cat_idx = [i for i, f in enumerate(train_feat_df.columns.tolist()) if f in categorical_columns]
+        >>>cat_dims = [categorical_dims[f] for i, f in enumerate(train_feat_df.columns.tolist()) if f in categorical_columns]
     """
     def __init__(self, model_params, fit_params):
         self.model_params = model_params

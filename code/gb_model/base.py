@@ -133,7 +133,7 @@ class BaseModel(object):
         self.sub_df["target"] = self.preds
         return Util.save_csv(self.sub_df, self.output_dir,  self.name + "sub")
 
-    def plot_oof__pred_target(self):
+    def plot_oof_pred_target(self):
         sns.set()
         plt.figure(figsize=(20, 7))
         sns.distplot(self.train_y, label="True Target")
