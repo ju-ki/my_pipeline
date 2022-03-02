@@ -1,12 +1,22 @@
 import os
+from importlib_metadata import version
 from setuptools import find_packages, setup
 
 
-PACKAGE_DIRNAME = "my_pipeline"
+PACKAGE_DIRNAME = "jukijuki"
 ROOT_DIR = os.path.dirname(__file__)
 
 with open(os.path.join(ROOT_DIR, "README.md")) as readme:
     README = readme.read()
+
+def get_version():
+    version_filepath = os.path.join(ROOT_DIR, PACKAGE_DIRNAME, "version.py")
+    with open(version_filepath) as f:
+        for line in f:
+            if line.startswith("__version__"):
+                return line.strip().split()[-1][1:-1]
+    assert False
+
 
 def _line_from_file(filename):
     with open(os.path.join(ROOT_DIR, filename)) as f:
@@ -15,7 +25,7 @@ def _line_from_file(filename):
 
 setup(
     name="jukijuki",
-    version="beta",
+    version=get_version(),
     author="jukiya",
     include_package_data=True,
     description="This is pipeline for me",
