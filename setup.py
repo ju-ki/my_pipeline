@@ -31,4 +31,5 @@ setup(
     long_description_content_type='text/markdown',
     author_email="juki.programming@gmail.com",
     install_requires=_line_from_file('requirements.txt'),
+    packages=['jukijuki']
 )
