@@ -1,5 +1,4 @@
 import os
-from importlib_metadata import version
 from setuptools import find_packages, setup
 
 
@@ -22,7 +21,6 @@ def _line_from_file(filename):
     with open(os.path.join(ROOT_DIR, filename)) as f:
         lines = f.readlines()
         return lines
-
 setup(
     name="jukijuki",
     version=get_version(),
@@ -30,6 +28,7 @@ setup(
     include_package_data=True,
     description="This is pipeline for me",
     long_description=README,
+    long_description_content_type='text/markdown',
     author_email="juki.programming@gmail.com",
-    requires=_line_from_file("requirements.txt")
+    install_requires=_line_from_file('requirements.txt'),
 )
