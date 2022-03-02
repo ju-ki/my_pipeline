@@ -22,7 +22,7 @@ class BaseModel(object):
     def predict(self, model, valid_x):
         raise NotImplementedError
 
-    def run(self, name: str, train_x: pd.DataFrame, train_y: Union[pd.Series, np.ndarray], cv: List[Tuple], metrics, logger = None, output_dir: str = "./"):
+    def run(self, name: str, train_x: pd.DataFrame, train_y: Union[pd.Series, np.ndarray], cv: List[Tuple], metrics, logger = None, output_dir: str = "./", save_model: bool=False):
         """
         Parameters
         ---------------------------
@@ -41,6 +41,8 @@ class BaseModel(object):
           None -> print log
          output_dir: str
           output model as pkl
+          save_model: bool
+          whether create pretrained model or not. default=False
 
         Example
         -------------------------------
@@ -50,10 +52,11 @@ class BaseModel(object):
               return list(kf.split(X, y))
 
          def score_rmse(y_true, y_pred):
-             score = mean_square_error(y_true, y_pred, is_squared=False)
+             touscore = mean_square_error(y_true, y_pred, is_squared=False)
              return score
 
         cv = make_kfold(X, y)
+
         ### set params for model
         my_model = MyModel(model_params=lgbm_params, fit_params=fit_params)
 
@@ -62,6 +65,18 @@ class BaseModel(object):
 
         ### make oof
         my_model.make_oof()
+
+        ### inference
+        my_model.inference(test_x=test_x)
+
+        ### make submission
+        my_model.make_submission()
+
+        ### plot oof and pred
+        my_model.plot_oof_pred_target
+
+        ### display oof and pred
+        my_model.debug_oof_pred(num=5)
 
         """
 
@@ -86,7 +101,8 @@ class BaseModel(object):
             model = self.build_model()
             model = self.fit(tr_x, tr_y, va_x, va_y)
             model_name = f"{name}_FOLD{cv_num}_model"
-            self.save(self.output_dir, model_name)
+            if save_model:
+                self.save(self.output_dir, model_name)
             self.models[model_name] = model
 
             pred = self.predict(model, va_x)
