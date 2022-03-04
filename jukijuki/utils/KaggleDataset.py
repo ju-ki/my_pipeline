@@ -1,7 +1,5 @@
 import os
-import sys
 import json
-import glob
 import subprocess
 
 
@@ -66,49 +64,3 @@ def set_kaggle_api(debug_command=False):
             print("Error kaggle command:", e.stderr)
     print("Completed set kaggle api!")
     os.chdir("/content/")
-
-
-def set_environment(competition_name: str) -> bool:
-    """[summary]
-    主にGoogle Colaboratoryで必要なライブラリやコンペデータのダウンロードをする関数
-    Args:
-        competition_name (str): [Name of the competition you want to download]
-
-    Returns:
-        bool: [current environment(colab, kaggle, local)]
-    """
-    IN_COLAB = 'google.colab' in sys.modules
-    IN_KAGGLE = 'kaggle_web_client' in sys.modules
-    LOCAL = not (IN_KAGGLE or IN_COLAB)
-    print(f'IN_COLAB:{IN_COLAB}, IN_KAGGLE:{IN_KAGGLE}, LOCAL:{LOCAL}')
-    if IN_COLAB:
-        from google.colab import drive
-        drive.mount('/content/drive')
-        set_kaggle_api()
-        input_dir = f"/content/drive/MyDrive/{competition_name}/data/input/"
-        data_path = glob.glob(os.path.join(input_dir, "*submission.csv"))
-        if len(data_path) == 0 or not os.path.isfile(data_path[0]):
-            os.chdir(input_dir)
-            try:
-                result = subprocess.run(f"kaggle competitions download -c {competition_name}", shell=True, stdout=subprocess.PIPE, check=True)
-                print(result.stdout.decode("utf-8"))
-            except subprocess.CalledProcessError as e:
-                print("Error competition name:", e.stderr)
-            try:
-                o = subprocess.run("unzip '*.zip'", shell=True, stdout=subprocess.PIPE, check=True) 
-                print(o.stdout.decode("utf-8"))
-            except subprocess.CalledProcessError as e:
-                print("Error unzip command:", e.stderr)
-            try:
-                o = subprocess.run("rm *.zip", shell=True, stdout=subprocess.PIPE, check=True)
-            except subprocess.CalledProcessError as e:
-                print("Error rm command:", e.stderr)
-        os.chdir(f"/content/drive/MyDrive/{competition_name}/")
-        try:
-            o = subprocess.run("pip install --quiet -r requirements.txt", shell=True, stdout=subprocess.PIPE, check=True)
-            print(o.stdout.decode("utf-8"))
-            print("Completed installing Library!")
-        except subprocess.CalledProcessError as e:
-            print("Error install library:", e.stderr)
-        os.chdir("/content/")
-    return IN_COLAB, IN_KAGGLE, LOCAL
