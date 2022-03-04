@@ -22,7 +22,7 @@ def _line_from_file(filename):
         lines = f.readlines()
         return lines
 setup(
-    name="jukijuki",
+    name=PACKAGE_DIRNAME,
     version=get_version(),
     author="jukiya",
     include_package_data=True,
@@ -31,5 +31,5 @@ setup(
     long_description_content_type='text/markdown',
     author_email="juki.programming@gmail.com",
     install_requires=_line_from_file('requirements.txt'),
-    packages=['jukijuki']
+    packages=[PACKAGE_DIRNAME]
 )

@@ -28,7 +28,7 @@ class WrapperBlock(AbstractBaseBlock):
 
 
 def run_blocks(input_df: pd.DataFrame, blocks: List, y=None, preprocess_block=Optional[List], 
-               logger=None, filepath: str = "./", task: str = "train") -> pd.DataFrame:
+               logger=None, filepath: str = "./", task: str = "train", save_feature: bool = False) -> pd.DataFrame:
     """
     Args:
         input_df (pd.DataFrame): original DataFrame
@@ -38,6 +38,7 @@ def run_blocks(input_df: pd.DataFrame, blocks: List, y=None, preprocess_block=Op
         logger (_type_, optional): if is not None, output log fie
         filepath (str, optional): output feature block as pkl. Defaults to "./".
         task (str, optional): _description_. Defaults to "train".
+        save_feature; create feature as pkl. default=False
 
     Returns:
         pd.DataFrame: feature engined feature
@@ -47,27 +48,31 @@ def run_blocks(input_df: pd.DataFrame, blocks: List, y=None, preprocess_block=Op
         input_df = preprocess_block(input_df)
     _input_df = input_df.copy()
 
-    if not os.path.isdir(filepath + "features/"):
-        os.makedirs(filepath + "features")
-                    
+    if save_feature and not os.path.isdir(filepath + "features/"):
+            os.makedirs(filepath + "features")
+
     print(decorate(f"start create block for {task}"))
 
     with Timer(logger=logger, prefix=f'create {task} block'):
         for block in blocks:
-            try:
-                file_name = os.path.join(filepath + "features/", f"{task}_{block.__class__.__name__}_{str(block.cols)}.pkl")
-            except:
-                file_name = os.path.join(filepath + "features/", f"{task}_{block.__class__.__name__}.pkl")
+            if save_feature:
+                try:
+                    file_name = os.path.join(filepath + "features/", f"{task}_{block.__class__.__name__}_{str(block.cols)}.pkl")
+                except:
+                    file_name = os.path.join(filepath + "features/", f"{task}_{block.__class__.__name__}.pkl")
+                    
             with Timer(logger=logger, prefix='\t- {}'.format(str(block))):
-                if os.path.isfile(file_name):
+                if save_feature and os.path.isfile(file_name):
                     out_i = Util.load(file_name)
                 else:
                     if task == "train":
                         out_i = block.fit(_input_df)
-                        Util.dump(out_i, file_name)
+                        if save_feature:
+                            Util.dump(out_i, file_name)
                     else:
                         out_i = block.transform(_input_df)
-                        Util.dump(out_i, file_name)
+                        if save_feature:
+                            Util.dump(out_i, file_name)
 
             assert len(input_df) == len(out_i), block
             name = block.__class__.__name__

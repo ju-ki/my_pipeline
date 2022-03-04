@@ -22,12 +22,12 @@ from util import AbstractBaseBlock
 
 
 class StringLengthBlock(AbstractBaseBlock):
-    def __init__(self, column):
-        self.column = column
+    def __init__(self, cols):
+        self.cols = cols
 
     def transform(self, input_df):
         out_df = pd.DataFrame()
-        out_df[self.column] = input_df[self.column].str.len()
+        out_df[self.cols] = input_df[self.cols].str.len()
         return out_df.add_prefix('StringLength_')
 
 
@@ -49,7 +49,7 @@ def cleansing_hero_text(text_col):
     """
     Stopwords抜きの関数
     """
-  custom_pipeline = [
+    custom_pipeline = [
                    hero.preprocessing.remove_whitespace,
                    hero.preprocessing.drop_no_content,
                    hero.preprocessing.fillna,
@@ -60,15 +60,15 @@ def cleansing_hero_text(text_col):
                    hero.preprocessing.remove_brackets,
                    hero.preprocessing.remove_punctuation,
                    hero.preprocessing.stem]
-  texts = hero.clean(text_col, custom_pipeline)
-  return texts
+    texts = hero.clean(text_col, custom_pipeline)
+    return texts
 
 def cleansing_hero_text_and_stopwords(text_col):
     
     """
     stopwordsを含む
     """
-  custom_pipeline = [
+    custom_pipeline = [
                    hero.preprocessing.remove_whitespace,
                    hero.preprocessing.drop_no_content,
                    hero.preprocessing.fillna,
@@ -80,26 +80,29 @@ def cleansing_hero_text_and_stopwords(text_col):
                    hero.preprocessing.remove_punctuation,
                    hero.preprocessing.stem,
                    hero.preprocessing.remove_stopwords]
-  texts = hero.clean(text_col, custom_pipeline)
-  return texts
+    texts = hero.clean(text_col, custom_pipeline)
+    return texts
+
 
 def line_ngram(line, n=2):
-  words = [w for w in line.split(' ') if len(w) != 0]
-  return list(ngrams(words, n))
+    words = [w for w in line.split(' ') if len(w) != 0]
+    return list(ngrams(words, n))
+
 
 def create_n_gram(x, n=3):
-  x = cleansing_hero_text(x)
-  x = pd.Series(x).map(lambda r: line_ngram(r, n=n))
-  return x
+    x = cleansing_hero_text(x)
+    x = pd.Series(x).map(lambda r: line_ngram(r, n=n))
+    return x
+
 
 class NameNGramBlock(AbstractBaseBlock):
-    def __init__(self, whole_df, col, n=3):
+    def __init__(self, whole_df, cols, n=3):
         self.whole_df = whole_df
-        self.col = col
+        self.cols = cols
         self.n = n
 
     def fit(self, input_df, y=None):
-        name_grams = create_n_gram(self.whole_df[self.col], n=self.n)
+        name_grams = create_n_gram(self.whole_df[self.cols], n=self.n)
         grams = [x for row in name_grams for x in row if len(x) > 0]
         top_grams = pd.Series(grams).value_counts().head(20).index
 
@@ -107,7 +110,7 @@ class NameNGramBlock(AbstractBaseBlock):
         return self.transform(input_df)
 
     def transform(self, input_df):
-        name_grams = create_n_gram(input_df[self.col], n=self.n)
+        name_grams = create_n_gram(input_df[self.cols], n=self.n)
         output_df = pd.DataFrame()
 
         for top in self.top_grams_:
@@ -115,6 +118,7 @@ class NameNGramBlock(AbstractBaseBlock):
             output_df[f'{s_top}'] = name_grams.map(lambda x: top in x).map(int)
 
         return output_df.add_prefix('Name_has_').add_suffix(f'_n={self.n}')
+
 
 def text_normalization(text):
 
@@ -132,24 +136,29 @@ def text_normalization(text):
     ])
 
     return x
-      
+
+
 class TfidfBlock(AbstractBaseBlock):
-    """tfidf x SVD による圧縮を行なう block"""
-    def __init__(self, column: str):
+    def __init__(self, cols: str):
         """
+        TfidfVectorizer(max_features=10000) -> TruncatedSVD
+
+        ref:
+          https://www.guruguru.science/competitions/16/discussions/95b7f8ec-a741-444f-933a-94c33b9e66be/
         args:
-            column: str
-                変換対象のカラム名
+          cols: str
         """
-        self.column = column
+        self.cols = cols
 
     def preprocess(self, input_df):
-        x = text_normalization(input_df[self.column])
+        x = text_normalization(input_df[self.cols])
         return x
 
     def get_master(self, input_df):
-        """tdidfを計算するための全体集合を返す. 
-        デフォルトでは fit でわたされた dataframe を使うが, もっと別のデータを使うのも考えられる."""
+        """
+          tdidfを計算するための全体集合を返す. 
+          デフォルトでは fit でわたされた dataframe を使うが, もっと別のデータを使うのも考えられる.
+        """
         return input_df
 
     def fit(self, input_df, y=None):
@@ -166,9 +175,10 @@ class TfidfBlock(AbstractBaseBlock):
     def transform(self, input_df):
         text = self.preprocess(input_df)
         z = self.pileline_.transform(text)
-
         out_df = pd.DataFrame(z)
-        
+        return out_df
+
+
 # reference: https://github.com/arosh/BM25Transformer/blob/master/bm25.py
 class BM25Transformer(BaseEstimator, TransformerMixin):
     """
@@ -254,6 +264,7 @@ class BM25Transformer(BaseEstimator, TransformerMixin):
 
         return X
     
+
 class BertSequenceVectorizer:
     def __init__(self, model_name="bert-base-uncased", max_len=128):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -285,19 +296,21 @@ class BertSequenceVectorizer:
         else:
             return seq_out[0][0].detach().numpy()
 
-    
+
+
 class GetLanguageLabel(AbstractBaseBlock):
     """
     言語判定するブロック
     """
     def __init__(self, cols, path):
-      self.cols = cols
-      self.path = path
+        self.cols = cols
+        self.path = path
+        
     def fit(self, input_df):
-      self.model = load_model(self.path)
-      return self.transform(input_df)
+        self.model = load_model(self.path)
+        return self.transform(input_df)
 
     def transform(self, input_df):
-      out_df = pd.DataFrame()
-      out_df[self.cols] = input_df[self.cols].fillna("").map(lambda x: self.model.predict(x.replace("\n", ""))[0][0])
-      return out_df.add_prefix("lang_label_")
+        out_df = pd.DataFrame()
+        out_df[self.cols] = input_df[self.cols].fillna("").map(lambda x: self.model.predict(x.replace("\n", ""))[0][0])
+        return out_df.add_prefix("lang_label_")
