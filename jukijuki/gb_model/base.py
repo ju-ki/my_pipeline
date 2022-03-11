@@ -88,7 +88,6 @@ class BaseModel(object):
         va_idxes = []
         scores = []
 
-
         for cv_num, (tr_idx, va_idx) in tqdm(enumerate(cv)):
             if logger is None:
                 print(decorate("fold {}".format(cv_num + 1) + " is starting"))

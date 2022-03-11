@@ -24,43 +24,14 @@ def create_new_dataset(dataset_name, upload_dir):
         folder=upload_dir, convert_to_csv=False, dir_mode='tar')
 
 
-def set_kaggle_info():
+def set_kaggle_info(debug_command=False):
     """[summary]
     set your kaggle information to Google Colaboratory
     """
-    f = open("/content/drive/MyDrive/jukiya/kaggle.json", 'r')
-    json_data = json.load(f)
+    with open("/content/drive/MyDrive/jukiya/kaggle.json", "r") as f:
+        json_data = json.load(f)
     os.environ["KAGGLE_USERNAME"] = json_data["username"]
     os.environ["KAGGLE_KEY"] = json_data["key"]
-
-
-def set_kaggle_api(debug_command=False):
-    """
-     Google Colaboratoryでkaggle apiを使用するための関数
-    """
-    os.chdir("/content/drive/MyDrive/jukiya/")
-    try:
-        o = subprocess.run("pip install kaggle", shell=True, stdout=subprocess.PIPE, check=True)
-        print(o.stdout.decode("utf-8"))
-    except subprocess.CalledProcessError as e:
-        print("Not kaggle.json file",  e.stderr)
-    try:
-        o = subprocess.run("mkdir -p ~/kaggle", shell=True,  stdout=subprocess.PIPE, check=True)
-    except subprocess.CalledProcessError as e:
-        print("Error",  e.stderr)
-    try:
-        o = subprocess.run("cp kaggle.json ~/.kaggle/", shell=True, stdout=subprocess.PIPE, check=True)
-    except subprocess.CalledProcessError as e:
-        print("Error cp command:",  e.stderr)
-    try:
-        o = subprocess.run("chmod 600 /root/.kaggle/kaggle.json", shell=True, stdout=subprocess.PIPE, check=True)
-    except subprocess.CalledProcessError as e:
-        print("Error chmod command:",  e.stderr)
     if debug_command:
-        try:
-            result = subprocess.run("kaggle competitions list", shell=True, stdout=subprocess.PIPE, check=True)
-            print(result.stdout.decode("utf-8"))
-        except subprocess.CalledProcessError as e:
-            print("Error kaggle command:", e.stderr)
-    print("Completed set kaggle api!")
-    os.chdir("/content/")
+        o = subprocess.run("kaggle competitions list", shell=True, stdout=subprocess.PIPE, check=True)
+        print(o.stdout.decode("utf-8"))
