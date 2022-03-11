@@ -44,12 +44,12 @@ def run_blocks(input_df: pd.DataFrame, blocks: List, y=None, preprocess_block=Op
         pd.DataFrame: feature engined feature
     """
     out_df = pd.DataFrame()
-    if not preprocess_block is None:
+    if preprocess_block is not None:
         input_df = preprocess_block(input_df)
     _input_df = input_df.copy()
 
     if save_feature and not os.path.isdir(filepath + "features/"):
-            os.makedirs(filepath + "features")
+        os.makedirs(filepath + "features")
 
     print(decorate(f"start create block for {task}"))
 
@@ -60,7 +60,7 @@ def run_blocks(input_df: pd.DataFrame, blocks: List, y=None, preprocess_block=Op
                     file_name = os.path.join(filepath + "features/", f"{task}_{block.__class__.__name__}_{str(block.cols)}.pkl")
                 except:
                     file_name = os.path.join(filepath + "features/", f"{task}_{block.__class__.__name__}.pkl")
-                    
+
             with Timer(logger=logger, prefix='\t- {}'.format(str(block))):
                 if save_feature and os.path.isfile(file_name):
                     out_i = Util.load(file_name)

@@ -1,7 +1,6 @@
 import os
 import sys
 import pandas as pd
-import subprocess
 import joblib
 
 
@@ -41,38 +40,56 @@ def decorate(s: str, decoration=None):
     return ' '.join([decoration, str(s), decoration])
 
 
-def set_environment() -> bool:
+def set_environment(Config) -> bool:
     """[summary]
     今いる環境をboolで返す関数
     Returns:
         bool: [current environment(colab, kaggle, local)]
-
-    Example usage:
-       IN_KAGGLE, IN_COLAB, LOCAL = set_environment()
     """
     IN_COLAB = 'google.colab' in sys.modules
     IN_KAGGLE = 'kaggle_web_client' in sys.modules
     LOCAL = not (IN_KAGGLE or IN_COLAB)
+    Config.IN_COLAB = IN_COLAB
+    Config.IN_KAGGLE = IN_KAGGLE
+    Config.LOCAL = LOCAL
     print(f'IN_COLAB:{IN_COLAB}, IN_KAGGLE:{IN_KAGGLE}, LOCAL:{LOCAL}')
-    return IN_COLAB, IN_KAGGLE, LOCAL
 
 
-def make_exp_output_directory(Config):
-    assert hasattr(Config, "model_dir"), "Please model_dir attribute"
+def create_folder(Config):
+    set_environment()
+    assert hasattr(Config, "competition_name"), "Please create competition_name attribute"
     assert hasattr(Config, "exp_name"), "Please create exp_name attribute"
-    import requests
+    assert hasattr(Config, "IN_COLAB"), "Please execute set_environment"
+    assert hasattr(Config, "IN_KAGGLE"), "Please excute set_environment"
 
-    def get_exp_name():
-        return requests.get("http://172.28.0.2:9000/api/sessions").json()[0]["name"].split("_")[0]
-    if not os.path.isdir(Config.model_dir + get_exp_name()):
-        try:
-            subprocess.run(f"mkdir {Config.model_dir + get_exp_name()}", shell=True, stdout=subprocess.PIPE, check=True)
-            Config.model_dir = Config.model_dir + get_exp_name()
-            Config.exp_name = get_exp_name()
-            print(f"Created {get_exp_name()} folder")
-        except subprocess.CalledProcessError:
-            print("Please check your folder")
-    else:
-        Config.model_dir = Config.model_dir + get_exp_name() + "/"
+    if Config.IN_COLAB:
+        import requests
+        os.chdir("/content/drive/MyDrive/")
+        if not os.path.isdir(Config.competition_name):
+            os.makedirs(Config.competition_name)
+
+        def get_exp_name():
+            return requests.get("http://172.28.0.2:9000/api/sessions").json()[0]["name"].split("_")[0]
+
         Config.exp_name = get_exp_name()
-        print(f"Already such {Config.model_dir} folder created!")
+        print(decorate(Config.exp_name))
+        os.chdir(f"/content/drive/MyDrive/{Config.competition_name}/")
+        INPUT = f"/content/drive/MyDrive/{Config.competition_name}/"
+        DATA = os.path.join(INPUT, "input/")
+        EXTERNAL = os.path.join(DATA, "external/")
+        LOG = os.path.join(INPUT, "log/")
+        OUTPUT = os.path.join(INPUT, "output/")
+        EXP = os.path.join(OUTPUT, Config.exp_name)
+        Config.input_dir = DATA
+        Config.output_dir = OUTPUT
+        Config.model_dir = EXP
+        for d in [LOG, OUTPUT, EXP, DATA, EXTERNAL]:
+            if not os.path.isdir(d):
+                print(f"making {d}")
+                os.makedirs(d, exist_ok=True)
+            else:
+                print(f"already created{d}")
+    elif Config.IN_KAGGLE:
+        Config.input_dir = f"../input/{Config.competition_name}/"
+        Config.output_dir = "./"
+        Config.model_dir = "./"

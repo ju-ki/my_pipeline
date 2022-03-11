@@ -139,7 +139,7 @@ def text_normalization(text):
 
 
 class TfidfBlock(AbstractBaseBlock):
-    def __init__(self, cols: str):
+    def __init__(self, cols: str, n_components: int = 50):
         """
         TfidfVectorizer(max_features=10000) -> TruncatedSVD
 
@@ -149,24 +149,17 @@ class TfidfBlock(AbstractBaseBlock):
           cols: str
         """
         self.cols = cols
+        self.n_components = n_components
 
     def preprocess(self, input_df):
         x = text_normalization(input_df[self.cols])
         return x
 
-    def get_master(self, input_df):
-        """
-          tdidfを計算するための全体集合を返す. 
-          デフォルトでは fit でわたされた dataframe を使うが, もっと別のデータを使うのも考えられる.
-        """
-        return input_df
-
     def fit(self, input_df, y=None):
-        master_df = self.get_master(input_df)
         text = self.preprocess(input_df)
         self.pileline_ = Pipeline([
             ('tfidf', TfidfVectorizer(max_features=10000)),
-            ('svd', TruncatedSVD(n_components=50)),
+            ('svd', TruncatedSVD(n_components=self.n_components)),
         ])
 
         self.pileline_.fit(text)
@@ -263,7 +256,7 @@ class BM25Transformer(BaseEstimator, TransformerMixin):
             X = X * self._idf_diag
 
         return X
-    
+
 
 class BertSequenceVectorizer:
     def __init__(self, model_name="bert-base-uncased", max_len=128):
@@ -297,7 +290,6 @@ class BertSequenceVectorizer:
             return seq_out[0][0].detach().numpy()
 
 
-
 class GetLanguageLabel(AbstractBaseBlock):
     """
     言語判定するブロック
@@ -305,7 +297,7 @@ class GetLanguageLabel(AbstractBaseBlock):
     def __init__(self, cols, path):
         self.cols = cols
         self.path = path
-        
+
     def fit(self, input_df):
         self.model = load_model(self.path)
         return self.transform(input_df)
