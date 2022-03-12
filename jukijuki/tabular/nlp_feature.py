@@ -1,24 +1,25 @@
+import os
+import nltk
+import torch
+import hashlib
 import numpy as np
 import pandas as pd
-import string
+import fasttext
 import texthero as hero
-from nltk.util import ngrams
-from fasttext import load_model
-from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from sklearn.decomposition import TruncatedSVD, PCA
-from sklearn.pipeline import Pipeline
-
-import scipy.sparse as sp
-
-from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.utils.validation import check_is_fitted
-from sklearn.feature_extraction.text import _document_frequency
-
-import torch
 import transformers
-
 from transformers import BertTokenizer
-from util import AbstractBaseBlock
+import tensorflow as tf
+import tensorflow_text
+import tensorflow_hub as hub
+from nltk.util import ngrams
+from tqdm.auto import tqdm
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from gensim.models.doc2vec import Doc2Vec, TaggedDocument
+from sklearn.decomposition import TruncatedSVD
+from sklearn.pipeline import Pipeline
+from .bm25 import BM25Transformer
+from .utils import AbstractBaseBlock
+tqdm.pandas()
 
 
 class StringLengthBlock(AbstractBaseBlock):
@@ -28,7 +29,7 @@ class StringLengthBlock(AbstractBaseBlock):
     def transform(self, input_df):
         out_df = pd.DataFrame()
         out_df[self.cols] = input_df[self.cols].str.len()
-        return out_df.add_prefix('StringLength_')
+        return out_df.add_prefix('string_length_')
 
 
 class GetCountWord(AbstractBaseBlock):
@@ -63,8 +64,8 @@ def cleansing_hero_text(text_col):
     texts = hero.clean(text_col, custom_pipeline)
     return texts
 
+
 def cleansing_hero_text_and_stopwords(text_col):
-    
     """
     stopwordsを含む
     """
@@ -121,9 +122,6 @@ class NameNGramBlock(AbstractBaseBlock):
 
 
 def text_normalization(text):
-
-    # 英語とオランダ語を stopword として指定
-    # 複数の言語を処理したい場合は逐一変更
     custom_stopwords = nltk.corpus.stopwords.words('english')
 
     x = hero.clean(text, pipeline=[
@@ -139,133 +137,144 @@ def text_normalization(text):
 
 
 class TfidfBlock(AbstractBaseBlock):
-    def __init__(self, cols: str, n_components: int = 50):
+    def __init__(self, cols: str, n_components: int = 50, text_normalize=None):
         """
-        TfidfVectorizer(max_features=10000) -> TruncatedSVD
 
         ref:
           https://www.guruguru.science/competitions/16/discussions/95b7f8ec-a741-444f-933a-94c33b9e66be/
         args:
-          cols: str
+         cols (str): col_name
+         n_components (int): number of dimension
         """
         self.cols = cols
         self.n_components = n_components
+        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        self.text_normalize = text_normalize
+
+    def confirm_cumulative_contribution_rate(self, input_df):
+        x = self.preprocess(input_df)
+        x = TfidfVectorizer.fit_transform(x)
+        x = self.decomp.fit_transform(x)
+        print(f"Cumulative contribution rate:{np.sum(self.decomp.explained_variance_ratio_)}")
 
     def preprocess(self, input_df):
-        x = text_normalization(input_df[self.cols])
+        if self.text_normalize:
+            x = text_normalization(input_df[self.cols])
+        else:
+            x = input_df[self.cols].fillna("")
         return x
 
     def fit(self, input_df, y=None):
         text = self.preprocess(input_df)
-        self.pileline_ = Pipeline([
+        self.pipeline = Pipeline([
             ('tfidf', TfidfVectorizer(max_features=10000)),
-            ('svd', TruncatedSVD(n_components=self.n_components)),
+            ('svd', TruncatedSVD(n_components=self.n_components, random_state=42)),
         ])
 
-        self.pileline_.fit(text)
+        self.pipeline.fit(text)
         return self.transform(input_df)
 
     def transform(self, input_df):
         text = self.preprocess(input_df)
-        z = self.pileline_.transform(text)
+        z = self.pipeline.transform(text)
         out_df = pd.DataFrame(z)
-        return out_df
+        return out_df.add_prefix(f"{self.cols}_tfidf_").add_suffix("_svd_feature")
 
 
-# reference: https://github.com/arosh/BM25Transformer/blob/master/bm25.py
-class BM25Transformer(BaseEstimator, TransformerMixin):
-    """
-    Parameters
-    ----------
-    use_idf : boolean, optional (default=True)
-    k1 : float, optional (default=2.0)
-    b : float, optional (default=0.75)
-    References
-    ----------
-    Okapi BM25: a non-binary model - Introduction to Information Retrieval
-    http://nlp.stanford.edu/IR-book/html/htmledition/okapi-bm25-a-non-binary-model-1.html
-    """
-    def __init__(self, use_idf=True, k1=2.0, b=0.75):
-        self.use_idf = use_idf
-        self.k1 = k1
-        self.b = b
+class BM25Block(AbstractBaseBlock):
+    def __init__(self, cols: str, n_components: int = 50, text_normalize=None):
+        self.cols = cols
+        self.n_components = n_components
+        self.text_normalize = text_normalize
+        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
 
-    def fit(self, X):
-        """
-        Parameters
-        ----------
-        X : sparse matrix, [n_samples, n_features]
-            document-term matrix
-        """
-        if not sp.issparse(X):
-            X = sp.csc_matrix(X)
-        if self.use_idf:
-            n_samples, n_features = X.shape
-            df = _document_frequency(X)
-            idf = np.log((n_samples - df + 0.5) / (df + 0.5))
-            self._idf_diag = sp.spdiags(idf, diags=0, m=n_features, n=n_features)
-        return self
+    def confirm_cumulative_contribution_rate(self, input_df):
+        x = self.preprocess(input_df)
+        x = CountVectorizer().fit_transform(x)
+        bm25 = BM25Transformer()
+        bm25.fit(x)
+        x = bm25().transform(x)
+        x = self.decomp.fit_transform(x)
+        print(f"Cumulative contribution rate:{np.sum(self.decomp.explained_variance_ratio_)}")
 
-    def transform(self, X, copy=True):
-        """
-        Parameters
-        ----------
-        X : sparse matrix, [n_samples, n_features]
-            document-term matrix
-        copy : boolean, optional (default=True)
-        """
-        if hasattr(X, 'dtype') and np.issubdtype(X.dtype, np.float):
-            # preserve float family dtype
-            X = sp.csr_matrix(X, copy=copy)
+    def preprocess(self, input_df):
+        if self.text_normalize:
+            x = text_normalization(input_df[self.cols])
         else:
-            # convert counts or binary occurrences to floats
-            X = sp.csr_matrix(X, dtype=np.float64, copy=copy)
+            x = input_df[self.cols].fillna("")
+        return x
 
-        n_samples, n_features = X.shape
+    def fit(self, input_df, y=None):
+        text = self.preprocess(input_df)
+        self.pipeline = Pipeline([
+            ("CountVectorizer", CountVectorizer()),
+            ("BM25Transformer", BM25Transformer()),
+            ('svd', TruncatedSVD(n_components=self.n_components, random_state=42))
+        ])
 
-        # Document length (number of terms) in each row
-        # Shape is (n_samples, 1)
-        dl = X.sum(axis=1)
-        # Number of non-zero elements in each row
-        # Shape is (n_samples, )
-        sz = X.indptr[1:] - X.indptr[0:-1]
-        # In each row, repeat `dl` for `sz` times
-        # Shape is (sum(sz), )
-        # Example
-        # -------
-        # dl = [4, 5, 6]
-        # sz = [1, 2, 3]
-        # rep = [4, 5, 5, 6, 6, 6]
-        rep = np.repeat(np.asarray(dl), sz)
-        # Average document length
-        # Scalar value
-        avgdl = np.average(dl)
-        # Compute BM25 score only for non-zero elements
-        data = X.data * (self.k1 + 1) / (X.data + self.k1 * (1 - self.b + self.b * rep / avgdl))
-        X = sp.csr_matrix((data, X.indices, X.indptr), shape=X.shape)
+        self.pipeline.fit(text)
+        return self.transform(input_df)
 
-        if self.use_idf:
-            check_is_fitted(self, '_idf_diag', 'idf vector is not fitted')
-
-            expected_n_features = self._idf_diag.shape[0]
-            if n_features != expected_n_features:
-                raise ValueError("Input has n_features=%d while the model"
-                                 " has been trained with n_features=%d" % (
-                                     n_features, expected_n_features))
-            # *= doesn't work
-            X = X * self._idf_diag
-
-        return X
+    def transform(self, input_df):
+        text = self.preprocess(input_df)
+        z = self.pipeline.transform(text)
+        out_df = pd.DataFrame(z)
+        return out_df.add_prefix(f"{self.cols}_bm25_").add_suffix("_svd_feature")
 
 
-class BertSequenceVectorizer:
-    def __init__(self, model_name="bert-base-uncased", max_len=128):
+class Doc2VecBlock(AbstractBaseBlock):
+    def __init__(self, cols: str, params=None, text_normalize=None):
+        self.cols = cols
+        self.text_normalize = text_normalize
+        self.params = params
+        if self.params is None:
+            self.params = {
+                "vector_size": 64,
+                "window": 10,
+                "min_count": 1,
+                "epochs": 20,
+                "seed": 42
+            }
+
+    def preprocess(self, input_df):
+        if self.text_normalize:
+            x = text_normalization(input_df[self.cols])
+        else:
+            x = input_df[self.cols].fillna("NaN")
+        return x
+
+    def fit(self, input_df):
+        text = self.preprocess(input_df)
+        corpus = [TaggedDocument(words=x, tags=[i]) for i, x in enumerate(text)]
+        self.params["documents"] = corpus
+        self.model = Doc2Vec(**self.params, hashfxn=hashfxn)
+        result = np.array([self.model.infer_vector(x) for x in text])
+        out_df = pd.DataFrame(result)
+        return out_df.add_prefix(f"{self.cols}_doc2vec_").add_suffix("_feature")
+
+    def transform(self, input_df):
+        text = self.preprocess(input_df)
+        result = np.array([self.model.infer_vector(x) for x in text])
+        out_df = pd.DataFrame(result)
+        return out_df.add_prefix(f"{self.cols}_doc2vec_").add_suffix("_feature")
+
+
+def hashfxn(x):
+    return int(hashlib.md5(str(x).encode()).hexdigest(), 16)
+
+
+class BertBlock(AbstractBaseBlock):
+    def __init__(self, cols: str, n_components: int = 50, model_name="bert-base-uncased", max_len=128, config=None):
+        self.cols = cols
+        self.n_components = n_components
+        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_name = model_name
         self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
         self.bert_model = transformers.BertModel.from_pretrained(self.model_name)
         self.bert_model = self.bert_model.to(self.device)
         self.max_len = max_len
+        self.config = config
 
     def vectorize(self, sentence: str) -> np.array:
         inp = self.tokenizer.encode(sentence)
@@ -282,12 +291,193 @@ class BertSequenceVectorizer:
         masks_tensor = torch.tensor([masks], dtype=torch.long).to(self.device)
 
         bert_out = self.bert_model(inputs_tensor, masks_tensor)
-        seq_out, pooled_out = bert_out['last_hidden_state'], bert_out['pooler_output']
+        seq_out, _ = bert_out['last_hidden_state'], bert_out['pooler_output']
 
-        if torch.cuda.is_available():    
-            return seq_out[0][0].cpu().detach().numpy() # 0番目は [CLS] token, 768 dim の文章特徴量
+        if torch.cuda.is_available():
+            return seq_out[0][0].cpu().detach().numpy()
         else:
             return seq_out[0][0].detach().numpy()
+
+    def confirm_cumulative_contribution_rate(self, input_df):
+        x = np.stack(self.create_text_vector(input_df, task="train"))
+        x = self.decomp.fit_transform(x)
+        print(f"Cumulative contribution rate:{np.sum(self.decomp.explained_variance_ratio_)}")
+
+    def create_text_vector(self, input_df, task: str = "train"):
+        if not os.path.isfile(self.config.output_dir + f"{task}_bert_{self.cols}_feature.pkl"):
+            _input_df = input_df.copy()
+            _input_df["bert_feature"] = _input_df[self.cols].fillna("NaN").progress_apply(lambda x: self.vectorize(x).reshape(-1))
+            _input_df[["bert_feature"]].to_pickle(self.config.output_dir + f"{task}_bert_{self.cols}_feature.pkl")
+        else:
+            _input_df = pd.read_pickle(self.config.output_dir + f"{task}_bert_{self.cols}_feature.pkl")
+        return _input_df["bert_feature"].to_numpy()
+
+    def fit(self, input_df):
+        x = np.stack(self.create_text_vector(input_df, task="train"))
+        x = self.decomp.fit_transform(x)
+        out_df = pd.DataFrame(x)
+        return out_df.add_prefix(f"{self.cols}_bert_").add_suffix("_svd_feature")
+
+    def transform(self, input_df):
+        x = np.stack(self.create_text_vector(input_df, task="test"))
+        x = self.decomp.transform(x)
+        out_df = pd.DataFrame(x)
+        return out_df.add_prefix(f"{self.cols}_bert_").add_suffix("_svd_feature")
+
+
+class UniversalSentenceEncoderBlock(AbstractBaseBlock):
+    def __init__(self, cols: str, n_components: int = 50, url="https://tfhub.dev/google/universal-sentence-encoder-multilingual/3", config=None):
+        self.cols = cols
+        self.n_components = n_components
+        self.url = url
+        self.config = config
+        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
+        self.embed = hub.load(url)
+
+    def confirm_cumulative_contribution_rate(self, input_df):
+        x = np.stack(self.create_text_vector(input_df, task="train"))
+        x = self.decomp.fit_transform(x)
+        print(f"Cumulative contribution rate:{np.sum(self.decomp.explained_variance_ratio_)}")
+
+    def create_text_vector(self, input_df, task: str = "train"):
+        if not os.path.isfile(self.config.output_dir + f"{task}_universal_{self.cols}_feature.pkl"):
+            _input_df = input_df.copy()
+            _input_df["universal_feature"] = _input_df[self.cols].fillna("NaN").progress_apply(lambda x: self.embed(x).numpy().reshape(-1))
+            _input_df[["universal_feature"]].to_pickle(self.config.output_dir + f"{task}_universal_{self.cols}_feature.pkl")
+        else:
+            _input_df = pd.read_pickle(self.config.output_dir + f"{task}_universal_{self.cols}_feature.pkl")
+        return _input_df["universal_feature"].to_numpy()
+
+    def fit(self, input_df):
+        x = np.stack(self.create_text_vector(input_df, task="train"))
+        x = self.decomp.fit_transform(x)
+        out_df = pd.DataFrame(x)
+        return out_df.add_prefix(f"{self.cols}_universal_").add_suffix("_svd_feature")
+
+    def transform(self, input_df):
+        x = np.stack(self.create_text_vector(input_df, task="test"))
+        x = self.decomp.transform(x)
+        out_df = pd.DataFrame(x)
+        return out_df.add_prefix(f"{self.cols}_universal_").add_suffix("_svd_feature")
+
+
+class FastTextEmbeddingFeatureBlock(AbstractBaseBlock):
+    def __init__(self, cols, n_components: int = 50, path: str = None):
+        self.cols = cols
+        self.n_components = n_components
+        self.path = path
+        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        self.fast_model = fasttext.load_model(self.path)
+
+    def confirm_cumulative_contribution_rate(self, input_df):
+        x = input_df[self.cols].progress_apply(lambda x: self.fast_model.get_sentence_vector(x.replace("\n", "")))
+        x = np.stack(x.values)
+        x = self.decomp.fit_transform(x)
+        print(f"Cumulative contribution rate:{np.sum(self.decomp.explained_variance_ratio_)}")
+
+    def fit(self, input_df):
+        X = input_df[self.cols].progress_apply(lambda x: self.fast_model.get_sentence_vector(x.replace("\n", "")))
+        X = np.stack(X.values)
+        X = self.decomp.fit_transform(X)
+        out_df = pd.DataFrame(X)
+        return out_df.add_prefix(f"{self.cols}_fasttext_embedding_").add_suffix("_svd_feature")
+
+    def transform(self, input_df):
+        X = input_df[self.cols].progress_apply(lambda x: self.fast_model.get_sentence_vector(x))
+        X = np.stack(X.values)
+        X = self.decomp.transform(X)
+        out_df = pd.DataFrame(X)
+        return out_df.add_prefix(f"{self.cols}_fasttext_embedding_").add_suffix("_svd_feature")
+
+
+class SimpleTokenizer:
+    def tokenize(self, text: str):
+        return text.split()
+
+
+class SWEMBlock(AbstractBaseBlock):
+    """
+    Simple Word-Embeddingbased Models (SWEM)
+    https://arxiv.org/abs/1805.09843v1
+    """
+
+    def __init__(self, cols: str, n_components: int = 50, tokenizer=None, path: str = None, mode="average", name: str = None, lang: str =None):
+        self.cols = cols
+        self.n_components = n_components
+        self.path = path
+        self.tokenizer = tokenizer
+        self.mode = mode
+        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        self.name = None
+        self.lang = None
+        if self.path is None:
+            assert self.lang is not None, "Please set lang"
+            assert self.name is not None, "Please set model name"
+            fasttext.util.download_model(self.lang, if_exists='ignore')
+            self.fast_model = fasttext.load_model(self.name)
+        else:
+            self.fast_model = fasttext.load_model(self.path)
+        self.embedding_dim = self.fast_model.get_dimension()
+
+    def confirm_cumulative_contribution_rate(self, input_df):
+        x = self.get_swem_vector(input_df)
+        x = self.decomp.fit_transform(x)
+        print(f"Cumulative contribution rate:{np.sum(self.decomp.explained_variance_ratio_)}")
+
+    def get_word_embeddings(self, text):
+        np.random.seed(abs(hash(text)) % (10 ** 8))
+
+        vectors = []
+        for word in self.tokenizer.tokenize(text):
+            vectors.append(self.fast_model.get_word_vector(word))
+        return np.array(vectors)
+
+    def average_pooling(self, text):
+        word_embeddings = self.get_word_embeddings(text)
+        return np.mean(word_embeddings, axis=0)
+
+    def max_pooling(self, text):
+        word_embeddings = self.get_word_embeddings(text)
+        return np.max(word_embeddings, axis=0)
+
+    def concat_average_max_pooling(self, text):
+        word_embeddings = self.get_word_embeddings(text)
+        return np.r_[np.mean(word_embeddings, axis=0), np.max(word_embeddings, axis=0)]
+
+    def hierarchical_pooling(self, text, n):
+        word_embeddings = self.get_word_embeddings(text)
+
+        text_len = word_embeddings.shape[0]
+        if n > text_len:
+            raise ValueError(f"window size must be less than text length / window_size:{n} text_length:{text_len}")
+        window_average_pooling_vec = [np.mean(word_embeddings[i:i + n], axis=0) for i in range(text_len - n + 1)]
+
+        return np.max(window_average_pooling_vec, axis=0)
+
+    def get_swem_vector(self, input_df):
+        if self.mode == "average":
+            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.average_pooling(x)).values)
+        elif self.mode == "max":
+            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.max_pooling(x)).values)
+        elif self.mode == "concat":
+            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.concat_average_max_pooling(x)).values)
+        elif self.mode == "hierachical" :
+            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.hierarchical_pooling_pooling(x, n=2)).values)
+        else:
+            raise ValueError(f"{self.mode} does not exist" )
+
+    def fit(self, input_df):
+        X = self.get_swem_vector(input_df)
+        X = self.decomp.fit_transform(X)
+        out_df = pd.DataFrame(X)
+        return out_df.add_prefix(f"{self.cols}_swem_{self.mode}_").add_suffix("_svd_feature")
+
+    def transform(self, input_df):
+        X = self.get_swem_vector(input_df)
+        X = self.decomp.transform(X)
+        out_df = pd.DataFrame(X)
+        return out_df.add_prefix(f"{self.cols}_swem_{self.mode}_").add_suffix("_svd_feature")
 
 
 class GetLanguageLabel(AbstractBaseBlock):
@@ -299,7 +489,7 @@ class GetLanguageLabel(AbstractBaseBlock):
         self.path = path
 
     def fit(self, input_df):
-        self.model = load_model(self.path)
+        self.model = fasttext.load_model(self.path)
         return self.transform(input_df)
 
     def transform(self, input_df):
