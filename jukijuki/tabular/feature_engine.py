@@ -3,32 +3,37 @@ import numpy as np
 import category_encoders as ce
 import xfeat
 from typing import List, Union, Optional
+from itertools import combinations
 from sklearn.model_selection import KFold
 from .utils import AbstractBaseBlock
 
 
-class GetCrossFeatureBlock(AbstractBaseBlock):
-    """
-    カテゴリ変数同士を組み合わせることができるブロック
-
-    cols:
-       exclude_columns:除外したいカラム(ex:id, user_id etc..), デフォルトはNone
-       r:いくつ変数を組み合わせるか. デフォルトは2
-
-    """
-
-    def __init__(self, exclude_columns=None, r=2):
-        self.exclude_columns = exclude_columns
+class CrossCategoricalFeatureBlock(AbstractBaseBlock):
+    def __init__(self, use_cols: List[str], r: int = 2, fillna: str = "NaN"):
+        self.use_cols = use_cols
         self.r = r
+        self.fillna = fillna
+
+    def concat_categorical_columns(self, input_df):
+        # refs: https://github.com/pfnet-research/xfeat/blob/master/xfeat/cat_encoder/_concat_combination.py
+        _df = input_df.copy()
+        cols = []
+        for cols_pairs in combinations(self.use_cols, r=self.r):
+            pairs_cols_str = "&".join(cols_pairs)
+            new_col = (pairs_cols_str)
+            cols.append(new_col)
+            concat_cols = self.use_cols
+            new_ser = None
+            for col in concat_cols:
+                if new_ser is None:
+                    new_ser = _df[col].fillna(self.fillna).copy()
+                else:
+                    new_ser = new_ser + "&" + _df[col].fillna(self.fillna)
+            _df[new_col] = new_ser
+        return _df[cols]
 
     def transform(self, input_df):
-        self.encoder = xfeat.Pipeline([
-            xfeat.SelectCategorical(exclude_cols=self.exclude_columns),
-            xfeat.ConcatCombination(output_suffix="_re", r=self.r)
-        ])
-        out_df = pd.DataFrame()
-        out_df = self.encoder.fit_transform(input_df)
-        return out_df
+        return self.concat_categorical_columns(input_df)
 
 
 class GetAddNumFeatureBlock(AbstractBaseBlock):
@@ -60,7 +65,7 @@ class GetAddNumFeatureBlock(AbstractBaseBlock):
 
 
 class LabelEncodingBlock(AbstractBaseBlock):
-    def __init__(self, cols):
+    def __init__(self, cols: str):
         self.cols = cols
 
     def fit(self, input_df: pd.DataFrame, y=None):
@@ -97,7 +102,7 @@ class CountEncodingBlock(AbstractBaseBlock):
 
 
 class OneHotEncoding(AbstractBaseBlock):
-    def __init__(self, cols, min_count=30):
+    def __init__(self, cols: str, min_count: int = 30):
         self.cols = cols
         self.min_count = min_count
 
@@ -117,72 +122,72 @@ class OneHotEncoding(AbstractBaseBlock):
         return out_df.add_prefix(f'{self.cols}=').astype("category")
 
 
-def max_min(x):
-    return x.max() - x.min()
+class MaxMin:
+    def __call__(self, x):
+        return max(x)-min(x)
+
+    def __str__(self):
+        return "max_min"
 
 
-def q75_q25(x):
-    return x.quantile(0.75) - x.quantile(0.25)
+class Quantile:
+    def __call__(self, x):
+        return x.quantile(0.75) - x.quantile(0.25)
+
+    def __str__(self):
+        return "interquartile_range"
 
 
 class AggregationBlock(AbstractBaseBlock):
-    """
-    集約変数を作成するブロック
-
-    cols:
-      group_key:元になる変数
-      group_values:集約を行う対象の変数
-      agg_methods:どのような方法で集約するか. デフォルトはmax, min, meanの三つ
-    """
-
-    def __init__(self, group_key: str, group_values: List[str], agg_methods=None):
-        self.group_key = group_key
-        self.group_values = group_values
+    def __init__(self, key: str, values: List[str], agg_methods: List[str]):
+        self.key = key
+        self.values = values
         self.agg_methods = agg_methods
         if self.agg_methods is None:
-            self.agg_methods = ["max", "min", "mean"]
+            self.agg_methods = ["max", "min", "mean", "std"]
+        ex_trans_methods = ["val-mean", "z-score"]
+        self.ex_trans_methods = [
+            m for m in self.agg_methods if m in ex_trans_methods]
 
-    def fit(self, input_df: pd.DataFrame) -> pd.DataFrame:
-        out_df = pd.DataFrame()
-        self.agg_df, self.agg_col = xfeat.aggregation(
-            input_df=input_df,
-            group_key=self.group_key,
-            group_values=self.group_values,
-            agg_methods=self.agg_methods
-        )
+        self.agg_methods = [
+            m for m in self.agg_methods if m not in self.ex_trans_methods]
 
-        out_df = self.agg_df[self.agg_col]
-        return out_df
+    def ex_transform(self, df1, df2):
+        """
+        df1: input_df
+        df2: output_df
+        return: output_df (added ex transformed features)
+        """
+        if "val-mean" in self.ex_trans_methods:
+            _agg_df, _agg_list = xfeat.aggregation(df1, group_key=self.key, group_values=self.values, agg_methods=["mean"])
+            mean_list = [m for m in _agg_list if "mean" in m]
+            df2[self._get_col("val-mean")] = df1[self.values].values - _agg_df[mean_list].values
 
-    def transform(self, input_df: pd.DataFrame) -> pd.DataFrame:
-        out_df = pd.DataFrame()
-        out_df = self.agg_df
-        return out_df
+        if "z-score" in self.ex_trans_methods:
+            _agg_df, _agg_list = xfeat.aggregation(df1, group_key=self.key, group_values=self.values, agg_methods=["mean", "std"])
+            mean_list = [m for m in _agg_list if "mean" in m]
+            std_list = [m for m in _agg_list if "std" in m]
+            df2[self._get_col("z-score")] = ((df1[self.values].values - _agg_df[mean_list].values)
+                                             / (_agg_df[std_list].values + 1e-8))
 
+        return df2
 
-#
+    def _get_col(self, method):
+        return [f"agg_{method}_{group_val}_grpby_{self.key}" for group_val in self.values]
 
-class RankingBlock(AbstractBaseBlock):
-    def __init__(self, group_key, group_values):
-        self.group_key = group_key
-        self.group_values = group_values
-
-        self.df = None
-
-    def fit(self, input_df, y=None):
-        new_df = []
-        new_cols = []
-
-        for col in self.group_values:
-            new_cols.append(f"ranking_{col}_grpby_{self.group_key}")
-            df__agg = (input_df[[col] + [self.group_key]].groupby(self.group_key)
-                       [col].rank(ascending=False, method="min"))
-            new_df.append(df__agg)
-            self.df = pd.concat(new_df, axis=1)
-        self.df.columns = new_cols
+    def fit(self, input_df: pd.DataFrame):
+        agg_df, agg_list = xfeat.aggregation(input_df=input_df, group_key=self.key, group_values=self.values, agg_methods=self.agg_methods)
+        new_col = [self.key] + agg_list
+        self.meta_df = agg_df[new_col].drop_duplicates().dropna().reset_index(drop=True)
+        return self.transform(input_df)
 
     def transform(self, input_df):
-        return self.df
+        out_df = pd.merge(input_df[self.key], self.meta_df, on=self.key, how="left")
+        if len(self.ex_trans_methods) != 0:
+            out_df = self.ex_transform(input_df, out_df)
+        out_df.drop(self.key, axis=1, inplace=True)
+
+        return out_df
 
 
 class TargetEncodingBlock(AbstractBaseBlock):
@@ -190,7 +195,7 @@ class TargetEncodingBlock(AbstractBaseBlock):
        ceを使用したtarget_encoding
     """
 
-    def __init__(self, cols, target):
+    def __init__(self, cols: str, target: str):
         self.cols = cols
         self.target = target
         self.encoder = ce.TargetEncoder(cols=self.cols)
@@ -208,7 +213,7 @@ class TargetEncodingBlock(AbstractBaseBlock):
 
 
 class KFoldTargetEncodingBlock(AbstractBaseBlock):
-    def __init__(self, cols: str, target: str, n_fold: int = 5, verbosity=True):
+    def __init__(self, cols: str, target: str, n_fold: int = 5, verbosity: bool = True):
         """_summary_
         Refs:
             https://www.guruguru.science/competitions/16/discussions/9e36d002-3ac2-4a96-8336-d407cad7a720/
@@ -251,66 +256,3 @@ class KFoldTargetEncodingBlock(AbstractBaseBlock):
         out_df = pd.DataFrame()
         out_df[self.cols] = input_df[self.cols].map(self.mapping_df[self.cols]).fillna(self.mean_of_target)
         return out_df.add_prefix("KFold_TE_")
-
-
-class GroupingEngine:
-
-    def __init__(self, group_key, group_values, agg_methods):
-        self.group_key = group_key
-        self.group_values = group_values
-
-        ex_trans_methods = ["val-mean", "z-score"]
-        self.ex_trans_methods = [
-            m for m in agg_methods if m in ex_trans_methods]
-        self.agg_methods = [
-            m for m in agg_methods if m not in self.ex_trans_methods]
-        self.df = None
-
-    def fit(self, input_df, y=None):
-        new_df = []
-        for agg_method in self.agg_methods:
-
-            for col in self.group_values:
-                if callable(agg_method):
-                    agg_method_name = agg_method.__name__
-                else:
-                    agg_method_name = agg_method
-
-                new_col = f"agg_{agg_method_name}_{col}_grpby_{self.group_key}"
-                df_agg = (input_df[[col] + [self.group_key]
-                                   ].groupby(self.group_key)[[col]].agg(agg_method))
-                df_agg.columns = [new_col]
-                new_df.append(df_agg)
-        self.df = pd.concat(new_df, axis=1).reset_index()
-
-    def transform(self, input_df):
-        output_df = pd.merge(
-            input_df[[self.group_key]], self.df, on=self.group_key, how="left")
-        if len(self.ex_trans_methods) != 0:
-            output_df = self.ex_transform(input_df, output_df)
-        output_df.drop(self.group_key, axis=1, inplace=True)
-        return output_df
-
-    def ex_transform(self, df1, df2):
-        """
-        df1: input_df
-        df2: output_df
-        return: output_df (added ex transformed features)
-        """
-
-        if "val-mean" in self.ex_trans_methods:
-            df2[self._get_col("val-mean")] = df1[self.group_values].values - \
-                df2[self._get_col("mean")].values
-        if "z-score" in self.ex_trans_methods:
-            df2[self._get_col("z-score")] = (df1[self.group_values].values - df2[self._get_col("mean")].values) \
-                / (df2[self._get_col("std")].values + 1e-3)
-    #         # df2[self._get_col("z-score")] = (df1[self.group_values] - df1[[key]+self.group_values].groupby(key).transform("mean")) \
-    #         #                                                     / (df1[[key]+self.group_values].groupby(key).transform("std") + 1e-8)
-        return df2
-
-    def _get_col(self, method):
-        return np.sort([f"agg_{method}_{group_val}_grpby_{self.group_key}" for group_val in self.group_values])
-
-    def fit_transform(self, input_df, y=None):
-        self.fit(input_df, y=y)
-        return self.transform(input_df)

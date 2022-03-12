@@ -79,7 +79,7 @@ def create_folder(Config):
         EXTERNAL = os.path.join(DATA, "external/")
         LOG = os.path.join(INPUT, "log/")
         OUTPUT = os.path.join(INPUT, "output/")
-        EXP = os.path.join(OUTPUT, Config.exp_name)
+        EXP = os.path.join(OUTPUT, Config.exp_name + "/")
         Config.input_dir = DATA
         Config.output_dir = OUTPUT
         Config.model_dir = EXP

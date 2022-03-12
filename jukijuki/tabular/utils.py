@@ -27,7 +27,7 @@ class WrapperBlock(AbstractBaseBlock):
         return self.function(input_df)
 
 
-def run_blocks(input_df: pd.DataFrame, blocks: List, y=None, preprocess_block=None, 
+def run_blocks(input_df: pd.DataFrame, blocks: List, y=None, preprocess_block=None,
                logger=None, filepath: str = "./", task: str = "train", save_feature: bool = False) -> pd.DataFrame:
     """
     Args:
