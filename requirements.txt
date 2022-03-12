@@ -1,5 +1,4 @@
 ###### Requirements without Version Specifiers ######
-textstat
 catboost
 pytorch_tabnet
 japanize_matplotlib
@@ -7,16 +6,14 @@ xfeat
 category_encoders
 texthero
 transformers
-torchinfo
-pytorch-lightning
 timm
-grad-cam
-ttach
+fasttext
 
 ###### Requirements with Version Specifiers ######
 albumentations==1.1.0
 tensorflow==2.7.0
 tensorflow-hub==0.12.0
+tensorflow-text == 2.7.3
 torch_optimizer==0.1.0
 folium==0.2.1
 opencv-python-headless<4.3

@@ -56,7 +56,7 @@ def set_environment(Config) -> bool:
 
 
 def create_folder(Config):
-    set_environment()
+    set_environment(Config)
     assert hasattr(Config, "competition_name"), "Please create competition_name attribute"
     assert hasattr(Config, "exp_name"), "Please create exp_name attribute"
     assert hasattr(Config, "IN_COLAB"), "Please execute set_environment"
@@ -83,6 +83,7 @@ def create_folder(Config):
         Config.input_dir = DATA
         Config.output_dir = OUTPUT
         Config.model_dir = EXP
+        Config.log_dir = LOG
         for d in [LOG, OUTPUT, EXP, DATA, EXTERNAL]:
             if not os.path.isdir(d):
                 print(f"making {d}")
@@ -93,3 +94,4 @@ def create_folder(Config):
         Config.input_dir = f"../input/{Config.competition_name}/"
         Config.output_dir = "./"
         Config.model_dir = "./"
+        Config.log_dir = "./"
