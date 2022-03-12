@@ -3,7 +3,7 @@ import json
 import subprocess
 
 
-def create_new_dataset(dataset_name, upload_dir):
+def create_new_dataset(dataset_name: str, upload_dir: str):
     """[summary]
 
     Args:

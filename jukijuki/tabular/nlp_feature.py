@@ -23,7 +23,7 @@ tqdm.pandas()
 
 
 class StringLengthBlock(AbstractBaseBlock):
-    def __init__(self, cols):
+    def __init__(self, cols: str):
         self.cols = cols
 
     def transform(self, input_df):
@@ -35,7 +35,7 @@ class StringLengthBlock(AbstractBaseBlock):
 class GetCountWord(AbstractBaseBlock):
     """単語数を取得するブロック"""
 
-    def __init__(self, cols):
+    def __init__(self, cols: str):
         self.cols = cols
 
     def transform(self, input_df):
@@ -326,7 +326,7 @@ class BertBlock(AbstractBaseBlock):
 
 
 class UniversalSentenceEncoderBlock(AbstractBaseBlock):
-    def __init__(self, cols: str, n_components: int = 50, url="https://tfhub.dev/google/universal-sentence-encoder-multilingual/3", config=None):
+    def __init__(self, cols: str, n_components: int = 50, url: str = "https://tfhub.dev/google/universal-sentence-encoder-multilingual/3", config=None):
         self.cols = cols
         self.n_components = n_components
         self.url = url
@@ -363,7 +363,7 @@ class UniversalSentenceEncoderBlock(AbstractBaseBlock):
 
 
 class FastTextEmbeddingFeatureBlock(AbstractBaseBlock):
-    def __init__(self, cols, n_components: int = 50, path: str = None):
+    def __init__(self, cols: str, n_components: int = 50, path: str = None):
         self.cols = cols
         self.n_components = n_components
         self.path = path
@@ -402,9 +402,10 @@ class SWEMBlock(AbstractBaseBlock):
     https://arxiv.org/abs/1805.09843v1
     """
 
-    def __init__(self, cols: str, n_components: int = 50, tokenizer=None, path: str = None, mode="average", name: str = None, lang: str =None):
+    def __init__(self, cols: str, n_components: int = 50, n: int = 2, tokenizer=None, path: str = None, mode: str="average", name: str = None, lang: str =None):
         self.cols = cols
         self.n_components = n_components
+        self.n = n
         self.path = path
         self.tokenizer = tokenizer
         self.mode = mode
@@ -463,9 +464,9 @@ class SWEMBlock(AbstractBaseBlock):
         elif self.mode == "concat":
             return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.concat_average_max_pooling(x)).values)
         elif self.mode == "hierachical" :
-            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.hierarchical_pooling_pooling(x, n=2)).values)
+            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.hierarchical_pooling_pooling(x, self.n=2)).values)
         else:
-            raise ValueError(f"{self.mode} does not exist" )
+            raise ValueError(f"{self.mode} does not exist")
 
     def fit(self, input_df):
         X = self.get_swem_vector(input_df)
@@ -484,7 +485,7 @@ class GetLanguageLabel(AbstractBaseBlock):
     """
     言語判定するブロック
     """
-    def __init__(self, cols, path):
+    def __init__(self, cols: str, path: str):
         self.cols = cols
         self.path = path
 

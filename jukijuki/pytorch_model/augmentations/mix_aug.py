@@ -4,6 +4,7 @@ from .aug_util import rand_bbox, rand_region
 import torch
 import numpy as np
 from .fmix import sample_mask
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def mixup(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0):

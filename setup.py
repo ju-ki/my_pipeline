@@ -1,5 +1,5 @@
 import os
-from setuptools import find_packages, setup
+from setuptools import setup
 
 
 PACKAGE_DIRNAME = "jukijuki"
@@ -7,6 +7,7 @@ ROOT_DIR = os.path.dirname(__file__)
 
 with open(os.path.join(ROOT_DIR, "README.md")) as readme:
     README = readme.read()
+
 
 def get_version():
     version_filepath = os.path.join(ROOT_DIR, PACKAGE_DIRNAME, "version.py")
@@ -21,6 +22,8 @@ def _line_from_file(filename):
     with open(os.path.join(ROOT_DIR, filename)) as f:
         lines = f.readlines()
         return lines
+
+
 setup(
     name=PACKAGE_DIRNAME,
     version=get_version(),
