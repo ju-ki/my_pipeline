@@ -76,7 +76,7 @@ class LabelEncodingBlock(AbstractBaseBlock):
         out_df = pd.DataFrame()
         out_df = self.encoder.fit_transform(
             input_df[self.cols]).add_prefix("LE_")
-        return out_df.astype("category")
+        return out_df
 
 
 class CountEncodingBlock(AbstractBaseBlock):
@@ -119,7 +119,7 @@ class OneHotEncoding(AbstractBaseBlock):
         cat = pd.Categorical(x, categories=self.categories_)
         out_df = pd.get_dummies(cat)
         out_df.columns = out_df.columns.tolist()
-        return out_df.add_prefix(f'{self.cols}=').astype("category")
+        return out_df.add_prefix(f'OneHot_{self.cols}=')
 
 
 class MaxMin:
