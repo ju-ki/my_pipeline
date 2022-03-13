@@ -138,10 +138,10 @@ class BaseModel(object):
         self.model = Util.load(filepath + model_name + ".pkl")
 
     def make_oof(self):
-        self.oof = pd.DataFrame({
+        self.oof_df = pd.DataFrame({
             "oof": self.oof
         })
-        return Util.save_csv(self.oof, self.output_dir, self.name + "oof")
+        return Util.save_csv(self.oof_df, self.output_dir, self.name + "oof")
 
     def make_submission(self):
         self.sub_df = pd.DataFrame()
@@ -152,7 +152,7 @@ class BaseModel(object):
         sns.set()
         plt.figure(figsize=(20, 7))
         sns.distplot(self.train_y, label="True Target")
-        sns.distplot(self.oof.values, label=self.name + "_oof")
+        sns.distplot(self.oof, label=self.name + "_oof")
         sns.distplot(self.preds, label=self.name + "_pred")
         plt.legend()
         plt.show()

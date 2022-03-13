@@ -314,7 +314,8 @@ class BertBlock(AbstractBaseBlock):
 
     def fit(self, input_df):
         x = np.stack(self.create_text_vector(input_df, task="train"))
-        x = self.decomp.fit_transform(x)
+        self.decomp.fit(x)
+        x = self.decomp.transform(x)
         out_df = pd.DataFrame(x)
         return out_df.add_prefix(f"{self.cols}_bert_").add_suffix("_svd_feature")
 
@@ -351,7 +352,8 @@ class UniversalSentenceEncoderBlock(AbstractBaseBlock):
 
     def fit(self, input_df):
         x = np.stack(self.create_text_vector(input_df, task="train"))
-        x = self.decomp.fit_transform(x)
+        self.decomp.fit(x)
+        x = self.decomp.transform(x)
         out_df = pd.DataFrame(x)
         return out_df.add_prefix(f"{self.cols}_universal_").add_suffix("_svd_feature")
 
@@ -363,12 +365,11 @@ class UniversalSentenceEncoderBlock(AbstractBaseBlock):
 
 
 class FastTextEmbeddingFeatureBlock(AbstractBaseBlock):
-    def __init__(self, cols: str, n_components: int = 50, path: str = None):
+    def __init__(self, cols: str, n_components: int = 50, fast_model=None):
         self.cols = cols
         self.n_components = n_components
-        self.path = path
+        self.fast_model = fast_model
         self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
-        self.fast_model = fasttext.load_model(self.path)
 
     def confirm_cumulative_contribution_rate(self, input_df):
         x = input_df[self.cols].progress_apply(lambda x: self.fast_model.get_sentence_vector(x.replace("\n", "")))
@@ -379,7 +380,8 @@ class FastTextEmbeddingFeatureBlock(AbstractBaseBlock):
     def fit(self, input_df):
         X = input_df[self.cols].progress_apply(lambda x: self.fast_model.get_sentence_vector(x.replace("\n", "")))
         X = np.stack(X.values)
-        X = self.decomp.fit_transform(X)
+        self.decomp.fit(X)
+        X = self.decomp.transform(X)
         out_df = pd.DataFrame(X)
         return out_df.add_prefix(f"{self.cols}_fasttext_embedding_").add_suffix("_svd_feature")
 
@@ -402,24 +404,15 @@ class SWEMBlock(AbstractBaseBlock):
     https://arxiv.org/abs/1805.09843v1
     """
 
-    def __init__(self, cols: str, n_components: int = 50, n: int = 2, tokenizer=None, path: str = None, mode: str="average", name: str = None, lang: str =None):
+    def __init__(self, cols: str, n_components: int = 50, n: int = 2, tokenizer=None, mode: str = "average", fast_model = None):
         self.cols = cols
         self.n_components = n_components
         self.n = n
-        self.path = path
         self.tokenizer = tokenizer
         self.mode = mode
-        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
-        self.name = None
-        self.lang = None
-        if self.path is None:
-            assert self.lang is not None, "Please set lang"
-            assert self.name is not None, "Please set model name"
-            fasttext.util.download_model(self.lang, if_exists='ignore')
-            self.fast_model = fasttext.load_model(self.name)
-        else:
-            self.fast_model = fasttext.load_model(self.path)
+        self.fast_model = fast_model
         self.embedding_dim = self.fast_model.get_dimension()
+        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
 
     def confirm_cumulative_contribution_rate(self, input_df):
         x = self.get_swem_vector(input_df)
@@ -458,19 +451,20 @@ class SWEMBlock(AbstractBaseBlock):
 
     def get_swem_vector(self, input_df):
         if self.mode == "average":
-            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.average_pooling(x)).values)
+            return np.stack(input_df[self.cols].fillna("NaN").str.replace("\n", " ").map(lambda x: self.average_pooling(x)).values)
         elif self.mode == "max":
-            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.max_pooling(x)).values)
+            return np.stack(input_df[self.cols].fillna("NaN").str.replace("\n", " ").map(lambda x: self.max_pooling(x)).values)
         elif self.mode == "concat":
-            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.concat_average_max_pooling(x)).values)
-        elif self.mode == "hierachical" :
-            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.hierarchical_pooling_pooling(x, n=self.n)).values)
+            return np.stack(input_df[self.cols].fillna("NaN").str.replace("\n", " ").map(lambda x: self.concat_average_max_pooling(x)).values)
+        elif self.mode == "hierachical":
+            return np.stack(input_df[self.cols].fillna("NaN").str.replace("\n", " ").map(lambda x: self.hierarchical_pooling_pooling(x, n=self.n)).values)
         else:
             raise ValueError(f"{self.mode} does not exist")
 
     def fit(self, input_df):
         X = self.get_swem_vector(input_df)
-        X = self.decomp.fit_transform(X)
+        self.decomp.fit(X)
+        X = self.decomp.transform(X)
         out_df = pd.DataFrame(X)
         return out_df.add_prefix(f"{self.cols}_swem_{self.mode}_").add_suffix("_svd_feature")
 
@@ -485,15 +479,14 @@ class GetLanguageLabel(AbstractBaseBlock):
     """
     言語判定するブロック
     """
-    def __init__(self, cols: str, path: str):
+    def __init__(self, cols: str, fast_model=None):
         self.cols = cols
-        self.path = path
+        self.fast_model = fast_model
 
     def fit(self, input_df):
-        self.model = fasttext.load_model(self.path)
         return self.transform(input_df)
 
     def transform(self, input_df):
         out_df = pd.DataFrame()
-        out_df[self.cols] = input_df[self.cols].fillna("").map(lambda x: self.model.predict(x.replace("\n", ""))[0][0])
+        out_df[self.cols] = input_df[self.cols].fillna("").map(lambda x: self.fast_model.predict(x.replace("\n", ""))[0][0])
         return out_df.add_prefix("lang_label_")
