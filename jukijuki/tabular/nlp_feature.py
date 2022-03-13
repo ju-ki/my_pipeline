@@ -464,7 +464,7 @@ class SWEMBlock(AbstractBaseBlock):
         elif self.mode == "concat":
             return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.concat_average_max_pooling(x)).values)
         elif self.mode == "hierachical" :
-            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.hierarchical_pooling_pooling(x, self.n=2)).values)
+            return np.stack(input_df[self.cols].fillna("").str.replace("\n", " ").map(lambda x: self.hierarchical_pooling_pooling(x, n=self.n)).values)
         else:
             raise ValueError(f"{self.mode} does not exist")
 
