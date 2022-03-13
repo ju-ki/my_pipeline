@@ -1,9 +1,8 @@
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from lightgbm import LGBMModel
-from typing import Optional, Dict
+from typing import Optional, Dict, Union, List
 from .base import BaseModel
 
 
@@ -28,16 +27,17 @@ class MyLGBMModel(BaseModel):
     fit_params:
         verbose: default=1
         early_stopping_rounds:None
-        metric:mae mse rsme poison auc average_precision binary_logloss binary_error multi_logloss cross_entropy
+        eval_metric:mae mse rmse poison auc average_precision binary_logloss binary_error multi_logloss cross_entropy
     """
 
     # ref:https://qiita.com/tubo/items/f83a97f2488cc1f40088 tuboさんのベースラインから
     #     :https://signate.jp/competitions/402/discussions/lgbm-baseline-except-text-vs-include-text-lb07994-1　masatoさんのベースラインから
-    def __init__(self, model_params, fit_params: Optional[Dict]):
+    def __init__(self, model_params, fit_params: Optional[Dict], categorical_features: Optional[Union[List[str], List[int]]]):
         self.model_params = model_params
         self.fit_params = fit_params
         if self.fit_params is None:
             self.fit_params = {}
+        self.categorical_features = categorical_features
 
     def build_model(self):
         self.model = LGBMModel(**self.model_params)
@@ -48,6 +48,7 @@ class MyLGBMModel(BaseModel):
         self.model.fit(
             train_x, train_y,
             eval_set=[[valid_x, valid_y]],
+            categorical_feature=self.categorical_features,
             **self.fit_params
         )
         return self.model
@@ -56,7 +57,7 @@ class MyLGBMModel(BaseModel):
         preds = est.predict(valid_x)
         return preds
 
-    def visualize_importance(self,  train_feat_df: pd.DataFrame):
+    def get_feature_importance(self,  train_feat_df: pd.DataFrame):
         feature_importance_df = pd.DataFrame()
         num = 0
         for i, model in self.models.items():
