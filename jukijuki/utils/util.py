@@ -81,15 +81,16 @@ def create_folder(Config):
         OUTPUT = os.path.join(INPUT, "output/")
         EXP = os.path.join(OUTPUT, Config.exp_name + "/")
         Config.input_dir = DATA
+        Config.external_dir = EXTERNAL
         Config.output_dir = OUTPUT
         Config.model_dir = EXP
         Config.log_dir = LOG
-        for d in [LOG, OUTPUT, EXP, DATA, EXTERNAL]:
+        for d, name in zip([LOG, OUTPUT, EXP, DATA, EXTERNAL], ["log_dir", "output_dir", "model_dir", "input_dir", "external_dir"]):
             if not os.path.isdir(d):
-                print(f"making {d}")
+                print(f"{name}: making {d}")
                 os.makedirs(d, exist_ok=True)
             else:
-                print(f"already created{d}")
+                print(f"{name}: already created{d}")
     elif Config.IN_KAGGLE:
         Config.input_dir = f"../input/{Config.competition_name}/"
         Config.output_dir = "./"
