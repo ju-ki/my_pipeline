@@ -35,14 +35,17 @@ class StringLengthBlock(AbstractBaseBlock):
 class GetCountWord(AbstractBaseBlock):
     """単語数を取得するブロック"""
 
-    def __init__(self, cols: str):
+    def __init__(self, cols: str, text_normalize=None):
         self.cols = cols
+        self.text_normalize = text_normalize
 
     def transform(self, input_df):
+        _input_df = input_df.copy()
         out_df = pd.DataFrame()
-        out_df[self.cols] = cleansing_hero_text(input_df[self.cols])
-        out_df[self.cols] = out_df[self.cols].apply(
-            lambda x: len(x.split())).fillna("")
+        if self.text_normalize:
+            _input_df[self.cols] = self.text_normalize(_input_df[self.cols].fillna("NaN"))
+        out_df[self.cols] = _input_df[self.cols].fillna("NaN").apply(
+            lambda x: len(x.split()))
         return out_df.add_prefix("count_word_")
 
 
