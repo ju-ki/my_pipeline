@@ -1,6 +1,9 @@
 import os
 import sys
+import torch
+import random
 import pandas as pd
+import numpy as np
 import joblib
 
 
@@ -38,6 +41,15 @@ def decorate(s: str, decoration=None):
         decoration = '*' * 20
 
     return ' '.join([decoration, str(s), decoration])
+
+
+def seed_everything(SEED):
+    random.seed(SEED)
+    os.environ["PYTHONHASHSEED"] = str(SEED)
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed(SEED)
+    torch.backends.cudnn.deterministic = True
 
 
 def set_environment(Config) -> bool:
@@ -91,6 +103,10 @@ def create_folder(Config):
                 os.makedirs(d, exist_ok=True)
             else:
                 print(f"{name}: already created{d}")
+        file_name = os.path.join(Config.log_dir, Config.exp_name + ".log")
+        if os.path.isfile(file_name):
+            os.remove(file_name)
+            print(f"recreate {Config.exp_name}.log file")
     elif Config.IN_KAGGLE:
         Config.input_dir = f"../input/{Config.competition_name}/"
         Config.output_dir = "./"
