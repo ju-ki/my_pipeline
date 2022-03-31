@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import Dataset
 
 
-class TrainDataset(Dataset):
+class SimpleTrainDataset(Dataset):
     def __init__(self, df, config, transform=None):
         self.df = df
         self.config = config
@@ -25,7 +25,7 @@ class TrainDataset(Dataset):
         return image, label
 
 
-class TestDataset(Dataset):
+class SimpleTestDataset(Dataset):
     def __init__(self, df, transform=None):
         self.df = df
         self.file_names = df['file_path'].values
