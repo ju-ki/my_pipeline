@@ -2,10 +2,10 @@ import pandas as pd
 import numpy as np
 import category_encoders as ce
 import xfeat
-from typing import List, Union, Optional
+from typing import List
 from itertools import combinations
 from sklearn.model_selection import KFold
-from .utils import AbstractBaseBlock
+from .util import AbstractBaseBlock
 
 
 class CrossCategoricalFeatureBlock(AbstractBaseBlock):

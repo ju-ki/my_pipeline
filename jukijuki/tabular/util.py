@@ -1,7 +1,7 @@
 import os
 import sys
 import pandas as pd
-from typing import List, Optional
+from typing import List
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.timer import Timer
 from utils.util import Util, decorate
