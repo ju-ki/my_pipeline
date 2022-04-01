@@ -18,7 +18,7 @@ from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from sklearn.decomposition import TruncatedSVD
 from sklearn.pipeline import Pipeline
 from .bm25 import BM25Transformer
-from .utils import AbstractBaseBlock
+from .util import AbstractBaseBlock
 tqdm.pandas()
 
 
