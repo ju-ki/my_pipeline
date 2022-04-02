@@ -5,6 +5,8 @@ from torch.utils.data import Dataset
 
 class SimpleTrainDataset(Dataset):
     def __init__(self, df, config, transform=None):
+        assert hasattr(df, "file_path"), "Please create file_path columns"
+        assert hasattr(config, "target_col"), "Please create target_col attribute"
         self.df = df
         self.config = config
         self.file_path = self.df["file_path"].values

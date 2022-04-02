@@ -4,6 +4,8 @@ from torch.utils.data import Dataset
 
 class TrainDataset(Dataset):
     def __init__(self, df, config, tokenizer):
+        assert hasattr(df, "sentence_col"), "Please create sentence_col attribute"
+        assert hasattr(config, "target_col"), "Please create target_col attribute"
         self.df = df
         self.config = config
         self.sentence = self.df[self.config.sentence_col].values

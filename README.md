@@ -11,7 +11,9 @@ pip install git+https://github.com/ju-ki/my_pipeline
 ### Set up environment for tabular competition
 ```python
 from jukijuki.utils.logger import Logger
+from jukijuki.utils.timer import Timer
 from jukijuki.utils.util import create_folder, seed_everything
+from jukijuki.validation.SturgesRuleStratifiedKFold import sturges_skf
 from jukijuki.tabular.util import AbstractBaseBlock, WrapperBlock, run_blocks
 from jukijuki.tabular.feature_engine import LabelEncodingBlock, CountEncodingBlock, AggregationBlock, OneHotEncodingBlock, CrossCategoricalFeatureBlock
 from jukijuki.gb_model.model_lgbm import MyLGBModel
@@ -33,9 +35,11 @@ logger = Logger(Config.log_dir, Config.exp_name)
 ### Set up environment for image competition
 ```python
 from jukijuki.image.util import get_file_path
+from jukijuki.utils.timer import Timer
 from jukijuki.utils.logger import Logger
 from jukijuki.utils.EarlyStopping import EarlyStopping
-from jukijuki.utils.util import create_folder, seed_everything
+from jukijuki.utils.util import create_folder, seed_everything, get_device
+from jukijuki.validation.SturgesRuleStratifiedKFold import sturges_skf
 from jukijuki.pytorch_model.util import get_optimizer, get_scheduler
 
 class Config:
@@ -62,6 +66,7 @@ class Config:
 
 create_folder(Config)
 seed_everything(Config.seed)
+device = get_device()
 logger = Logger(Config.log_dir, Config.exp_name)
 ```
 
@@ -69,9 +74,11 @@ logger = Logger(Config.log_dir, Config.exp_name)
 ### Set up environment for nlp competition
 ```python
 from jukijuki.nlp.util import get_tokenizer
+from jukijuki.utils.timer import Timer
 from jukijuki.utils.logger import Logger
 from jukijuki.utils.EarlyStopping import EarlyStopping
-from jukijuki.utils.util import create_folder, seed_everything
+from jukijuki.utils.util import create_folder, seed_everything, get_device
+from jukijuki.validation.SturgesRuleStratifiedKFold import sturges_skf
 from jukijuki.pytorch_model.util import get_optimizer, get_scheduler
 
 class Config:
@@ -79,6 +86,7 @@ class Config:
     competition_name = "hogehoge"
     exp_name = "hoge"
     target_col = "target"
+    sentence_col = "hoge
     batch_size = 32
     num_workers = 4
     max_len = 250
@@ -98,5 +106,6 @@ class Config:
 
 create_folder(Config)
 seed_everything(Config.seed)
+device = get_device()
 logger = Logger(Config.log_dir, Config.exp_name)
 ```
