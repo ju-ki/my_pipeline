@@ -6,7 +6,7 @@ class GroupKFold:
 
     # ref:https://zenn.dev/mst8823/articles/cd40cb971f702e
 
-    def __init__(self, n_splits=5, shuffle=True, random_state=0):
+    def __init__(self, n_splits=5, shuffle=True, random_state=42):
         self.n_splits = n_splits
         self.shuffle = shuffle
         self.random_state = random_state
@@ -25,9 +25,9 @@ class GroupKFold:
             yield train_idx, val_idx
 
 
-# def make_gkf(X, y, n_splits=5, random_state=0):
-#     #  groupkfoldでcvを渡すための関数
-#     #  予めgroup=data[target]としておく必要がある。
+def make_gkf(X, y, n_splits=5, random_state=42, group=None):
+    #  groupkfoldでcvを渡すための関数
+    #  予めgroup=data[target]としておく必要がある。
 
-#     gkf = GroupKFold(n_splits=n_splits, random_state=random_state)
-#     return list(gkf.split(X, y, group))
+    gkf = GroupKFold(n_splits=n_splits, random_state=random_state)
+    return list(gkf.split(X, y, group))

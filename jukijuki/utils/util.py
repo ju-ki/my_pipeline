@@ -36,6 +36,11 @@ class Util:
             return pd.read_csv(path)
 
 
+def get_device():
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    return device
+
+
 def decorate(s: str, decoration=None):
     if decoration is None:
         decoration = '*' * 20
