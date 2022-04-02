@@ -139,8 +139,8 @@ class Quantile:
 
 
 class AggregationBlock(AbstractBaseBlock):
-    def __init__(self, key: str, values: List[str], agg_methods: List[str]):
-        self.key = key
+    def __init__(self, cols: str, values: List[str], agg_methods: List[str]):
+        self.cols = cols
         self.values = values
         self.agg_methods = agg_methods
         if self.agg_methods is None:
@@ -159,12 +159,12 @@ class AggregationBlock(AbstractBaseBlock):
         return: output_df (added ex transformed features)
         """
         if "val-mean" in self.ex_trans_methods:
-            _agg_df, _agg_list = xfeat.aggregation(df1, group_key=self.key, group_values=self.values, agg_methods=["mean"])
+            _agg_df, _agg_list = xfeat.aggregation(df1, group_key=self.cols, group_values=self.values, agg_methods=["mean"])
             mean_list = [m for m in _agg_list if "mean" in m]
             df2[self._get_col("val-mean")] = df1[self.values].values - _agg_df[mean_list].values
 
         if "z-score" in self.ex_trans_methods:
-            _agg_df, _agg_list = xfeat.aggregation(df1, group_key=self.key, group_values=self.values, agg_methods=["mean", "std"])
+            _agg_df, _agg_list = xfeat.aggregation(df1, group_key=self.cols, group_values=self.values, agg_methods=["mean", "std"])
             mean_list = [m for m in _agg_list if "mean" in m]
             std_list = [m for m in _agg_list if "std" in m]
             df2[self._get_col("z-score")] = ((df1[self.values].values - _agg_df[mean_list].values)
@@ -173,19 +173,19 @@ class AggregationBlock(AbstractBaseBlock):
         return df2
 
     def _get_col(self, method):
-        return [f"agg_{method}_{group_val}_grpby_{self.key}" for group_val in self.values]
+        return [f"agg_{method}_{group_val}_grpby_{self.cols}" for group_val in self.values]
 
     def fit(self, input_df: pd.DataFrame):
-        agg_df, agg_list = xfeat.aggregation(input_df=input_df, group_key=self.key, group_values=self.values, agg_methods=self.agg_methods)
-        new_col = [self.key] + agg_list
+        agg_df, agg_list = xfeat.aggregation(input_df=input_df, group_key=self.cols, group_values=self.values, agg_methods=self.agg_methods)
+        new_col = [self.cols] + agg_list
         self.meta_df = agg_df[new_col].drop_duplicates().dropna().reset_index(drop=True)
         return self.transform(input_df)
 
     def transform(self, input_df):
-        out_df = pd.merge(input_df[self.key], self.meta_df, on=self.key, how="left")
+        out_df = pd.merge(input_df[self.cols], self.meta_df, on=self.cols, how="left")
         if len(self.ex_trans_methods) != 0:
             out_df = self.ex_transform(input_df, out_df)
-        out_df.drop(self.key, axis=1, inplace=True)
+        out_df.drop(self.cols, axis=1, inplace=True)
 
         return out_df
 
