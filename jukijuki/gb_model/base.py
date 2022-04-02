@@ -158,5 +158,5 @@ class BaseModel(object):
         plt.show()
 
     def debug_oof_pred(self, num=5):
-        display(self.oof.head(num))
+        display(self.oof_df.head(num))
         display(self.sub_df.head(num))

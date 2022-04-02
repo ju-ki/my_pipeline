@@ -1,4 +1,4 @@
-from transformer import AutoTokenizer
+from transformers import AutoTokenizer
 
 
 def get_tokenizer(config):
