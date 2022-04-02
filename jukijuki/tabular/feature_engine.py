@@ -139,8 +139,8 @@ class Quantile:
 
 
 class AggregationBlock(AbstractBaseBlock):
-    def __init__(self, key: str, values: List[str], agg_methods: List[str]):
-        self.key = key
+    def __init__(self, cols: str, values: List[str], agg_methods: List[str]):
+        self.key = cols
         self.values = values
         self.agg_methods = agg_methods
         if self.agg_methods is None:
