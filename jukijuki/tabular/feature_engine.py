@@ -101,7 +101,7 @@ class CountEncodingBlock(AbstractBaseBlock):
         return out_df.add_prefix('CE_')
 
 
-class OneHotEncoding(AbstractBaseBlock):
+class OneHotEncodingBlock(AbstractBaseBlock):
     def __init__(self, cols: str, min_count: int = 30):
         self.cols = cols
         self.min_count = min_count

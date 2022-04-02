@@ -16,7 +16,7 @@ from jukijuki.utils.util import create_folder, seed_everything
 from jukijuki.validation.SturgesRuleStratifiedKFold import sturges_skf
 from jukijuki.tabular.util import AbstractBaseBlock, WrapperBlock, run_blocks
 from jukijuki.tabular.feature_engine import LabelEncodingBlock, CountEncodingBlock, AggregationBlock, OneHotEncodingBlock, CrossCategoricalFeatureBlock
-from jukijuki.gb_model.model_lgbm import MyLGBModel
+from jukijuki.gb_model.model_lgbm import MyLGBMModel
 from jukijuki.gb_model.model_xgboost import MyXGBModel
 from jukijuki.gb_model.model_cat import MyCatModel
 
@@ -86,7 +86,7 @@ class Config:
     competition_name = "hogehoge"
     exp_name = "hoge"
     target_col = "target"
-    sentence_col = "hoge
+    sentence_col = "hoge"
     batch_size = 32
     num_workers = 4
     max_len = 250
@@ -107,5 +107,6 @@ class Config:
 create_folder(Config)
 seed_everything(Config.seed)
 device = get_device()
+tokenizer = get_tokenizer(Config.model_name)
 logger = Logger(Config.log_dir, Config.exp_name)
 ```
