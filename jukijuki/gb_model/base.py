@@ -143,8 +143,10 @@ class BaseModel(object):
         })
         return Util.save_csv(self.oof_df, self.output_dir, self.name + "oof")
 
-    def make_submission(self):
+    def make_submission(self,  is_logarithm=False):
         self.sub_df = pd.DataFrame()
+        if is_logarithm:
+            self.preds = np.expm1(self.preds)
         self.sub_df["target"] = self.preds
         return Util.save_csv(self.sub_df, self.output_dir,  self.name + "sub")
 
