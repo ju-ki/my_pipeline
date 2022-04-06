@@ -61,6 +61,7 @@ class Config:
     gradient_accumulation_steps=1
     max_grad_norm=1000
     n_fold = 5
+    trn_fold = [0, 1, 2, ,3, 4]
     seed = 42
     target_size = 1
 
@@ -101,6 +102,7 @@ class Config:
     gradient_accumulation_steps=1
     max_grad_norm=1000
     n_fold = 5
+    trn_fold = [0, 1, 2, 3, 4]
     seed = 42
     target_size = 1
 
