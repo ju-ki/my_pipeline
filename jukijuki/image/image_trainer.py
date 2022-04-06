@@ -76,7 +76,8 @@ def valid_fn(model, criterion, valid_dataloader, config, device):
 
 
 def inference_fn(test_loader, model, device, config):
-    assert hasattr(config, "n_folds"), "Please create n_folds(int usually 5) attribute"
+    assert hasattr(config, "n_fold"), "Please create n_fold(int usually 5) attribute"
+    assert hasattr(config, "trn_fold"), "Please create trn_fold(list[int] '[0, 1, 2, 3, 4]') attribute"
     assert hasattr(config, "model_dir"), "Please create model_dir(string './') attribute"
     assert hasattr(config, "model_name"), "Please create model_name(string, 'resnet34d') attribute"
     assert hasattr(config, "input_dir"), "Please create input_dir(string './') attribute"
@@ -96,14 +97,15 @@ def inference_fn(test_loader, model, device, config):
 
     final_pred = []
     for fold in range(config.n_fold):
-        state = torch.load(config.model_dir + f"/{config.model_name}_fold{fold + 1}_best.pth", map_location=torch.device('cpu'))['model']
-        model.load_state_dict(state)
-        model.to(device)
-        preds = inference(test_loader, model, device)
-        final_pred.append(preds)
-        del state
-        gc.collect()
-        torch.cuda.empty_cache()
+        if fold in config.trn_fold:
+            state = torch.load(config.model_dir + f"/{config.model_name}_fold{fold + 1}_best.pth", map_location=torch.device('cpu'))['model']
+            model.load_state_dict(state)
+            model.to(device)
+            preds = inference(test_loader, model, device)
+            final_pred.append(preds)
+            del state
+            gc.collect()
+            torch.cuda.empty_cache()
 
     final_pred = np.mean(np.column_stack(final_pred), axis=1)
     sub_df = pd.read_csv(config.input_dir + "sample_submission.csv")
