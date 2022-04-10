@@ -57,7 +57,7 @@ def run_blocks(input_df: pd.DataFrame, blocks: List, y=None, preprocess_block=No
         for block in blocks:
             if save_feature:
                 if hasattr(block, "cols"):
-                    if hasattr(block, "name") and hasattr(block, "n_component"):
+                    if hasattr(block, "name") and hasattr(block, "n_components"):
                         file_name = os.path.join(filepath + "features/", f"{task}_{block.__class__.__name__}_{str(block.cols)}_{str(block.name)}_{str(block.n_components)}.pkl")
                     else:
                         file_name = os.path.join(filepath + "features/", f"{task}_{block.__class__.__name__}_{str(block.cols)}.pkl")
