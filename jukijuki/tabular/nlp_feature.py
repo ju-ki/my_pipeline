@@ -15,7 +15,7 @@ from nltk.util import ngrams
 from tqdm.auto import tqdm
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
-from sklearn.decomposition import TruncatedSVD
+from sklearn.decomposition import TruncatedSVD, PCA, NMF
 from sklearn.pipeline import Pipeline
 from .bm25 import BM25Transformer
 from .util import AbstractBaseBlock
@@ -140,9 +140,8 @@ def text_normalization(text):
 
 
 class TfidfBlock(AbstractBaseBlock):
-    def __init__(self, cols: str, n_components: int = 50, text_normalize=None):
+    def __init__(self, cols: str, n_components: int = 50, name="svd", text_normalize=None):
         """
-
         ref:
           https://www.guruguru.science/competitions/16/discussions/95b7f8ec-a741-444f-933a-94c33b9e66be/
         args:
@@ -151,7 +150,14 @@ class TfidfBlock(AbstractBaseBlock):
         """
         self.cols = cols
         self.n_components = n_components
-        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        self.name = name
+        if self.name == "svd" or self.name is None:
+            self.name = "svd"
+            self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        elif self.name == "nmf":
+            self.decomp = NMF(n_components=self.n_components, random_state=42)
+        elif self.name == "pca":
+            self.decomp = PCA(n_components=self.n_components, random_state=42)
         self.text_normalize = text_normalize
 
     def confirm_cumulative_contribution_rate(self, input_df):
@@ -171,7 +177,7 @@ class TfidfBlock(AbstractBaseBlock):
         text = self.preprocess(input_df)
         self.pipeline = Pipeline([
             ('tfidf', TfidfVectorizer(max_features=10000)),
-            ('svd', TruncatedSVD(n_components=self.n_components, random_state=42)),
+            (self.name, self.decomp),
         ])
 
         self.pipeline.fit(text)
@@ -181,15 +187,22 @@ class TfidfBlock(AbstractBaseBlock):
         text = self.preprocess(input_df)
         z = self.pipeline.transform(text)
         out_df = pd.DataFrame(z)
-        return out_df.add_prefix(f"{self.cols}_tfidf_").add_suffix("_svd_feature")
+        return out_df.add_prefix(f"{self.cols}_tfidf_").add_suffix(f"_{self.name}_feature")
 
 
 class BM25Block(AbstractBaseBlock):
-    def __init__(self, cols: str, n_components: int = 50, text_normalize=None):
+    def __init__(self, cols: str, n_components: int = 50, name = "svd", text_normalize=None):
         self.cols = cols
         self.n_components = n_components
+        self.name = name
+        if self.name == "svd" or self.name is None:
+            self.name = "svd"
+            self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        elif self.name == "nmf":
+            self.decomp = NMF(n_components=self.n_components, random_state=42)
+        elif self.name == "pca":
+            self.decomp = PCA(n_components=self.n_components, random_state=42)
         self.text_normalize = text_normalize
-        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
 
     def confirm_cumulative_contribution_rate(self, input_df):
         x = self.preprocess(input_df)
@@ -212,7 +225,7 @@ class BM25Block(AbstractBaseBlock):
         self.pipeline = Pipeline([
             ("CountVectorizer", CountVectorizer()),
             ("BM25Transformer", BM25Transformer()),
-            ('svd', TruncatedSVD(n_components=self.n_components, random_state=42))
+            (self.name, self.decomp)
         ])
 
         self.pipeline.fit(text)
@@ -222,7 +235,7 @@ class BM25Block(AbstractBaseBlock):
         text = self.preprocess(input_df)
         z = self.pipeline.transform(text)
         out_df = pd.DataFrame(z)
-        return out_df.add_prefix(f"{self.cols}_bm25_").add_suffix("_svd_feature")
+        return out_df.add_prefix(f"{self.cols}_bm25_").add_suffix(f"_{self.name}_feature")
 
 
 class Doc2VecBlock(AbstractBaseBlock):
@@ -267,10 +280,17 @@ def hashfxn(x):
 
 
 class BertBlock(AbstractBaseBlock):
-    def __init__(self, cols: str, n_components: int = 50, model_name="bert-base-uncased", max_len=128, config=None):
+    def __init__(self, cols: str, n_components: int = 50, name = "svd", model_name="bert-base-uncased", max_len=128, config=None):
         self.cols = cols
         self.n_components = n_components
-        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        self.name = name
+        if self.name == "svd" or self.name is None:
+            self.name = "svd"
+            self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        elif self.name == "nmf":
+            self.decomp = NMF(n_components=self.n_components, random_state=42)
+        elif self.name == "pca":
+            self.decomp = PCA(n_components=self.n_components, random_state=42)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_name = model_name
         self.tokenizer = BertTokenizer.from_pretrained(self.model_name)
@@ -320,21 +340,29 @@ class BertBlock(AbstractBaseBlock):
         self.decomp.fit(x)
         x = self.decomp.transform(x)
         out_df = pd.DataFrame(x)
-        return out_df.add_prefix(f"{self.cols}_bert_").add_suffix("_svd_feature")
+        return out_df.add_prefix(f"{self.cols}_bert_").add_suffix(f"_{self.name}_feature")
 
     def transform(self, input_df):
         x = np.stack(self.create_text_vector(input_df, task="test"))
         x = self.decomp.transform(x)
         out_df = pd.DataFrame(x)
-        return out_df.add_prefix(f"{self.cols}_bert_").add_suffix("_svd_feature")
+        return out_df.add_prefix(f"{self.cols}_bert_").add_suffix(f"_{self.name}_feature")
 
 
 class UniversalSentenceEncoderBlock(AbstractBaseBlock):
-    def __init__(self, cols: str, n_components: int = 50, url: str = "https://tfhub.dev/google/universal-sentence-encoder-multilingual/3", config=None):
+    def __init__(self, cols: str, n_components: int = 50, name = "svd", url: str = "https://tfhub.dev/google/universal-sentence-encoder-multilingual/3", config=None):
         self.cols = cols
         self.n_components = n_components
         self.url = url
         self.config = config
+        self.name = name
+        if self.name == "svd" or self.name is None:
+            self.name = "svd"
+            self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        elif self.name == "nmf":
+            self.decomp = NMF(n_components=self.n_components, random_state=42)
+        elif self.name == "pca":
+            self.decomp = PCA(n_components=self.n_components, random_state=42)
         self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
         os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
         self.embed = hub.load(url)
@@ -358,21 +386,28 @@ class UniversalSentenceEncoderBlock(AbstractBaseBlock):
         self.decomp.fit(x)
         x = self.decomp.transform(x)
         out_df = pd.DataFrame(x)
-        return out_df.add_prefix(f"{self.cols}_universal_").add_suffix("_svd_feature")
+        return out_df.add_prefix(f"{self.cols}_universal_").add_suffix(f"_{self.name}_feature")
 
     def transform(self, input_df):
         x = np.stack(self.create_text_vector(input_df, task="test"))
         x = self.decomp.transform(x)
         out_df = pd.DataFrame(x)
-        return out_df.add_prefix(f"{self.cols}_universal_").add_suffix("_svd_feature")
+        return out_df.add_prefix(f"{self.cols}_universal_").add_suffix(f"_{self.name}_feature")
 
 
 class FastTextEmbeddingFeatureBlock(AbstractBaseBlock):
-    def __init__(self, cols: str, n_components: int = 50, fast_model=None):
+    def __init__(self, cols: str, n_components: int = 50, name = "svd", fast_model=None):
         self.cols = cols
         self.n_components = n_components
         self.fast_model = fast_model
-        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        self.name = name
+        if self.name == "svd" or self.name is None:
+            self.name = "svd"
+            self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        elif self.name == "nmf":
+            self.decomp = NMF(n_components=self.n_components, random_state=42)
+        elif self.name == "pca":
+            self.decomp = PCA(n_components=self.n_components, random_state=42)
 
     def confirm_cumulative_contribution_rate(self, input_df):
         x = input_df[self.cols].progress_apply(lambda x: self.fast_model.get_sentence_vector(x.replace("\n", "")))
@@ -386,14 +421,14 @@ class FastTextEmbeddingFeatureBlock(AbstractBaseBlock):
         self.decomp.fit(X)
         X = self.decomp.transform(X)
         out_df = pd.DataFrame(X)
-        return out_df.add_prefix(f"{self.cols}_fasttext_embedding_").add_suffix("_svd_feature")
+        return out_df.add_prefix(f"{self.cols}_fasttext_embedding_").add_suffix(f"_{self.name}_feature")
 
     def transform(self, input_df):
         X = input_df[self.cols].progress_apply(lambda x: self.fast_model.get_sentence_vector(x))
         X = np.stack(X.values)
         X = self.decomp.transform(X)
         out_df = pd.DataFrame(X)
-        return out_df.add_prefix(f"{self.cols}_fasttext_embedding_").add_suffix("_svd_feature")
+        return out_df.add_prefix(f"{self.cols}_fasttext_embedding_").add_suffix(f"_{self.name}_feature")
 
 
 class SimpleTokenizer:
@@ -407,7 +442,7 @@ class SWEMBlock(AbstractBaseBlock):
     https://arxiv.org/abs/1805.09843v1
     """
 
-    def __init__(self, cols: str, n_components: int = 50, n: int = 2, tokenizer=None, mode: str = "average", fast_model = None):
+    def __init__(self, cols: str, n_components: int = 50, n: int = 2, name = "svd", tokenizer=None, mode: str = "average", fast_model = None):
         self.cols = cols
         self.n_components = n_components
         self.n = n
@@ -415,7 +450,14 @@ class SWEMBlock(AbstractBaseBlock):
         self.mode = mode
         self.fast_model = fast_model
         self.embedding_dim = self.fast_model.get_dimension()
-        self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        self.name = name
+        if self.name == "svd" or self.name is None:
+            self.name = "svd"
+            self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        elif self.name == "nmf":
+            self.decomp = NMF(n_components=self.n_components, random_state=42)
+        elif self.name == "pca":
+            self.decomp = PCA(n_components=self.n_components, random_state=42)
 
     def confirm_cumulative_contribution_rate(self, input_df):
         x = self.get_swem_vector(input_df)
@@ -469,13 +511,13 @@ class SWEMBlock(AbstractBaseBlock):
         self.decomp.fit(X)
         X = self.decomp.transform(X)
         out_df = pd.DataFrame(X)
-        return out_df.add_prefix(f"{self.cols}_swem_{self.mode}_").add_suffix("_svd_feature")
+        return out_df.add_prefix(f"{self.cols}_swem_{self.mode}_").add_suffix(f"_{self.name}_feature")
 
     def transform(self, input_df):
         X = self.get_swem_vector(input_df)
         X = self.decomp.transform(X)
         out_df = pd.DataFrame(X)
-        return out_df.add_prefix(f"{self.cols}_swem_{self.mode}_").add_suffix("_svd_feature")
+        return out_df.add_prefix(f"{self.cols}_swem_{self.mode}_").add_suffix(f"_{self.name}_feature")
 
 
 class GetLanguageLabel(AbstractBaseBlock):
