@@ -1,3 +1,6 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 from typing import Optional, Dict
 from xgboost import XGBModel
 from .base import BaseModel
@@ -39,3 +42,32 @@ class MyXGBModel(BaseModel):
 
     def predict(self, est, valid_x):
         return est.predict(valid_x)
+
+    def get_feature_importance(self,  train_feat_df: pd.DataFrame):
+        feature_importance_df = pd.DataFrame()
+        num = 0
+        for i, model in self.models.items():
+            _df = pd.DataFrame()
+            _df['feature_importance'] = model.feature_importances_
+            _df['column'] = train_feat_df.columns
+            _df['fold'] = num + 1
+            feature_importance_df = pd.concat([feature_importance_df, _df],
+                                              axis=0, ignore_index=True)
+            num += 1
+
+        order = feature_importance_df.groupby('column')\
+            .sum()[['feature_importance']]\
+            .sort_values('feature_importance', ascending=False).index[:50]
+
+        fig, ax = plt.subplots(figsize=(8, max(6, len(order) * .25)))
+        sns.boxenplot(data=feature_importance_df,
+                      x='feature_importance',
+                      y='column',
+                      order=order,
+                      ax=ax,
+                      palette='viridis',
+                      orient='h')
+        ax.tick_params(axis='x', rotation=90)
+        ax.set_title('Lightgbm Feature Importance')
+        ax.grid()
+        plt.show()
