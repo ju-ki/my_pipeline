@@ -18,6 +18,7 @@ from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from sklearn.decomposition import TruncatedSVD, PCA, NMF
 from sklearn.pipeline import Pipeline
 from .bm25 import BM25Transformer
+from .scdv import SCDVEmbedder
 from .util import AbstractBaseBlock
 tqdm.pandas()
 
@@ -436,7 +437,102 @@ class SimpleTokenizer:
         return text.split()
 
 
-class SWEMBlock(AbstractBaseBlock):
+class W2VSWEMBlock(AbstractBaseBlock):
+    """
+    Simple Word-Embeddingbased Models (SWEM)
+    https://arxiv.org/abs/1805.09843v1
+    """
+
+    def __init__(self, cols: str, n_components: int = 50, n: int = 2, name = "svd", tokenizer=None, mode: str = "average", model = None, oov_initialize_range=(-0.01, 0.01)):
+        self.cols = cols
+        self.n_components = n_components
+        self.n = n
+        self.tokenizer = tokenizer
+        self.mode = mode
+        self.model = model
+        self.vocab = set(self.model.vocab.keys())
+        self.embedding_dim = self.model.vector_size
+        self.name = name
+        self.oov_initialize_range = oov_initialize_range
+
+        if self.oov_initialize_range[0] > self.oov_initialize_range[1]:
+            raise ValueError("Specify valid initialize range: "
+                             f"[{self.oov_initialize_range[0]}, {self.oov_initialize_range[1]}]")
+            
+        if self.name == "svd" or self.name is None:
+            self.name = "svd"
+            self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        elif self.name == "nmf":
+            self.decomp = NMF(n_components=self.n_components, random_state=42)
+        elif self.name == "pca":
+            self.decomp = PCA(n_components=self.n_components, random_state=42)
+
+    def confirm_cumulative_contribution_rate(self, input_df):
+        x = self.get_swem_vector(input_df)
+        x = self.decomp.fit_transform(x)
+        print(f"Cumulative contribution rate:{np.sum(self.decomp.explained_variance_ratio_)}")
+
+    def get_word_embeddings(self, text):
+        np.random.seed(abs(hash(text)) % (10 ** 8))
+        vectors = []
+        for word in self.tokenizer.tokenize(text):
+            if word in self.vocab:
+                vectors.append(self.model[word])
+            else:
+                vectors.append(np.random.uniform(self.oov_initialize_range[0],
+                                                 self.oov_initialize_range[1],
+                                                 self.embedding_dim))
+        return np.array(vectors)
+
+    def average_pooling(self, text):
+        word_embeddings = self.get_word_embeddings(text)
+        return np.mean(word_embeddings, axis=0)
+
+    def max_pooling(self, text):
+        word_embeddings = self.get_word_embeddings(text)
+        return np.max(word_embeddings, axis=0)
+
+    def concat_average_max_pooling(self, text):
+        word_embeddings = self.get_word_embeddings(text)
+        return np.r_[np.mean(word_embeddings, axis=0), np.max(word_embeddings, axis=0)]
+
+    def hierarchical_pooling(self, text, n):
+        word_embeddings = self.get_word_embeddings(text)
+
+        text_len = word_embeddings.shape[0]
+        if n > text_len:
+            raise ValueError(f"window size must be less than text length / window_size:{n} text_length:{text_len}")
+        window_average_pooling_vec = [np.mean(word_embeddings[i:i + n], axis=0) for i in range(text_len - n + 1)]
+
+        return np.max(window_average_pooling_vec, axis=0)
+
+    def get_swem_vector(self, input_df):
+        if self.mode == "average":
+            return np.stack(input_df[self.cols].fillna("NaN").str.replace("\n", " ").map(lambda x: self.average_pooling(x)).values)
+        elif self.mode == "max":
+            return np.stack(input_df[self.cols].fillna("NaN").str.replace("\n", " ").map(lambda x: self.max_pooling(x)).values)
+        elif self.mode == "concat":
+            return np.stack(input_df[self.cols].fillna("NaN").str.replace("\n", " ").map(lambda x: self.concat_average_max_pooling(x)).values)
+        elif self.mode == "hierachical":
+            return np.stack(input_df[self.cols].fillna("NaN").str.replace("\n", " ").map(lambda x: self.hierarchical_pooling(x, n=self.n)).values)
+        else:
+            raise ValueError(f"{self.mode} does not exist")
+
+    def fit(self, input_df):
+        X = self.get_swem_vector(input_df)
+        self.decomp.fit(X)
+        X = self.decomp.transform(X)
+        out_df = pd.DataFrame(X)
+        return out_df.add_prefix(f"{self.cols}_swem_{self.mode}_").add_suffix(f"_{self.name}_feature")
+
+    def transform(self, input_df):
+        X = self.get_swem_vector(input_df)
+        X = self.decomp.transform(X)
+        out_df = pd.DataFrame(X)
+        return out_df.add_prefix(f"{self.cols}_swem_{self.mode}_").add_suffix(f"_{self.name}_feature")
+
+
+class FastTextSWEMBlock(AbstractBaseBlock):
     """
     Simple Word-Embeddingbased Models (SWEM)
     https://arxiv.org/abs/1805.09843v1
@@ -518,6 +614,41 @@ class SWEMBlock(AbstractBaseBlock):
         X = self.decomp.transform(X)
         out_df = pd.DataFrame(X)
         return out_df.add_prefix(f"{self.cols}_swem_{self.mode}_").add_suffix(f"_{self.name}_feature")
+
+
+class W2VSCDVEmbedderBlock(AbstractBaseBlock):
+    def __init__(self, cols, n_components, tokenizer, model, name):
+        self.cols = cols
+        self.n_components = n_components
+        self.tokenizer = tokenizer
+        self.model = model
+        self.name = name
+        self.scdv = SCDVEmbedder(w2v=self.model, tokenizer=self.tokenizer)
+        if self.name == "svd" or self.name is None:
+            self.name = "svd"
+            self.decomp = TruncatedSVD(n_components=self.n_components, random_state=42)
+        elif self.name == "nmf":
+            self.decomp = NMF(n_components=self.n_components, random_state=42)
+        elif self.name == "pca":
+            self.decomp = PCA(n_components=self.n_components, random_state=42)
+
+    def fit(self, input_df):
+        self.scdv.fit(input_df[self.cols])
+        X = self.scdv.transform(input_df[self.cols])
+        self.decomp.fit(X)
+        X = self.decomp.transform(X)
+        out_df = pd.DataFrame(X)
+        return out_df.add_prefix(f"{self.cols}_scdv_").add_suffix(f"_{self.name}_feature")
+
+    def transform(self, input_df):
+        X = self.scdv.transform(input_df[self.cols])
+        X = self.decomp.transform(X)
+        out_df = pd.DataFrame(X)
+        return out_df.add_prefix(f"{self.cols}_scdv_").add_suffix(f"_{self.name}_feature")
+
+
+def tokenizer(x: str):
+    return x.split()
 
 
 class GetLanguageLabel(AbstractBaseBlock):
