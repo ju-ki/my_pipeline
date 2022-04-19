@@ -9,6 +9,8 @@ from IPython.display import display
 from torch.cuda.amp import autocast, GradScaler
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.AverageMeter import AverageMeter
+from .augmentations.mix_criterion import mix_criterion
+from .augmentations.mix_aug import mixup, cutmix, fmix, resizemix
 
 
 def train_fn(train_loader, model, criterion, optimizer, config, device):
@@ -30,6 +32,70 @@ def train_fn(train_loader, model, criterion, optimizer, config, device):
         else:
             y_preds = model(images)
             loss = criterion(y_preds.view(-1), labels)
+        # record loss
+        losses.update(loss.item(), batch_size)
+        if config.gradient_accumulation_steps > 1:
+            loss = loss / config.gradient_accumulation_steps
+        if config.apex:
+            scaler.scale(loss).backward()
+        else:
+            loss.backward()
+
+        if (step + 1) % config.gradient_accumulation_steps == 0:
+            if config.apex:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                optimizer.step()
+            optimizer.zero_grad()
+    return losses.avg
+
+
+def train_mix_fn(train_loader, model, criterion, optimizer, config, device):
+    assert hasattr(config, "apex"), "Please create apex(bool) attribute"
+    assert hasattr(config, "gradient_accumulation_steps"), "Please create gradient_accumulation_steps(int default=1) attribute"
+    assert hasattr(config, "mixup"), "Please create mixup(bool) attribute"
+    assert hasattr(config, "cutmix"), "Please create cutmix(bool) attribute"
+    assert hasattr(config, "fmix"), "Please create fmix(bool) attribute"
+    assert hasattr(config, "resizemix"), "Please create resizemix(bool) attribute"
+    assert hasattr(config, "mixup_boarder"), "Please create mixup_boarder(float) attribute"
+
+    model.train()
+    if config.apex:
+        scaler = GradScaler()
+    losses = AverageMeter()
+    for step, (images, labels) in enumerate(train_loader):
+        images = images.to(device)
+        labels = labels.to(device)
+        batch_size = labels.size(0)
+        if config.mixup or config.cutmix or config.fmix or config.resizemix:
+                mixup_decision = np.random.rand()
+                if mixup_decision < config.mixup_boarder:
+                    if config.mixup:
+                        images, target_a, target_b, lam = mixup(images, labels, alpha=1.0)
+                        target_a, target_b = target_a.to(device), target_b.to(device)
+                    elif config.cutmix:
+                        images, target_a, target_b, lam = cutmix(images, labels)
+                        target_a, target_b = target_a.to(device), target_b.to(device)
+                    elif config.resizemix:
+                        images, target_a, target_b, lam = resizemix(images, labels, alpha=0.1, beta=0.8)
+                        target_a, target_b = target_a.to(device), target_b.to(device)
+                    elif config.fmix:
+                        images, target_a, target_b, lam = fmix(images, labels, alpha=1.0, decay_power=5.0, shape=(config.size, config.size))
+                        target_a, target_b = target_a.to(device), target_b.to(device)
+        if config.apex:
+            with autocast():
+                y_preds = model(images)
+                loss = criterion(y_preds.view(-1), labels)
+        else:
+            y_preds = model(images)
+            if config.mixup or config.cutmix or config.fmix or config.resizemix:
+                if mixup_decision < config.mixup_boarder:
+                    loss = mix_criterion(criterion, y_preds.view(-1), target_a, target_b, lam)
+                else:
+                    loss = criterion(y_preds.view(-1), labels)
+            else:
+                loss = criterion(y_preds.view(-1), labels)
         # record loss
         losses.update(loss.item(), batch_size)
         if config.gradient_accumulation_steps > 1:

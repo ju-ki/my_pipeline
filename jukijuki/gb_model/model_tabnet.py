@@ -162,7 +162,7 @@ class MyTabNetClassifierModel(BaseModel):
         preds = est.predict_proba(valid_x)[:, 1]
         return preds
 
-    def get_feature_importance(self, train_x: pd.DataFrame):
+    def get_feature_importance(self, train_x: pd.DataFrame, is_save = False, filepath = None):
         feature_importance_df = pd.DataFrame()
         num = 0
         for i, model in self.models.items():
@@ -179,6 +179,9 @@ class MyTabNetClassifierModel(BaseModel):
             .sort_values('feature_importance', ascending=False).index[:50]
 
         fig, ax = plt.subplots(figsize=(8, max(6, len(order) * .25)))
+        if is_save:
+            fig.savefig(filepath + "tabnet_feature_importance.png")
+            _df.to_csv(filepath + "tabnet_feature_importance.csv", index=False)
         sns.boxenplot(data=feature_importance_df,
                       x='feature_importance',
                       y='column',
