@@ -57,7 +57,7 @@ class MyLGBMModel(BaseModel):
         preds = est.predict(valid_x)
         return preds
 
-    def get_feature_importance(self,  train_feat_df: pd.DataFrame):
+    def get_feature_importance(self,  train_feat_df: pd.DataFrame, is_save=False, filepath=None):
         feature_importance_df = pd.DataFrame()
         num = 0
         for i, model in self.models.items():
@@ -74,6 +74,9 @@ class MyLGBMModel(BaseModel):
             .sort_values('feature_importance', ascending=False).index[:50]
 
         fig, ax = plt.subplots(figsize=(8, max(6, len(order) * .25)))
+        if is_save:
+            fig.savefig(filepath + "lgbm_feature_importance.png")
+            _df.to_csv(filepath + "lgbm_feature_importance.csv", index=False)
         sns.boxenplot(data=feature_importance_df,
                       x='feature_importance',
                       y='column',

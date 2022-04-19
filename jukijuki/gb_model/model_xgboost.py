@@ -68,6 +68,6 @@ class MyXGBModel(BaseModel):
                       palette='viridis',
                       orient='h')
         ax.tick_params(axis='x', rotation=90)
-        ax.set_title('Lightgbm Feature Importance')
+        ax.set_title('XGBoost Feature Importance')
         ax.grid()
         plt.show()
