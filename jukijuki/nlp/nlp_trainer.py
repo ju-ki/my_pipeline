@@ -44,6 +44,8 @@ def train_fn(train_loader, model, criterion, optimizer, scheduler, config, devic
             optimizer.zero_grad()
             if config.batch_scheduler:
                 scheduler.step()
+        del loss
+        gc.collect()
     return losses.avg
 
 
