@@ -105,10 +105,11 @@ class Config:
     trn_fold = [0, 1, 2, 3, 4]
     seed = 42
     target_size = 1
+    batch_scheduler = True
 
 create_folder(Config)
 seed_everything(Config.seed)
 device = get_device()
-tokenizer = get_tokenizer(Config.model_name)
+tokenizer = get_tokenizer(Config)
 logger = Logger(Config.log_dir, Config.exp_name)
 ```

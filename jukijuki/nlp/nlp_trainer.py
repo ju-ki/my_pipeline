@@ -3,6 +3,7 @@ import os
 import sys
 import torch
 import numpy as np
+import pandas as pd
 from tqdm.auto import tqdm
 from IPython.display import display
 from torch.cuda.amp import autocast, GradScaler
@@ -10,36 +11,30 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.AverageMeter import AverageMeter
 
 
-
-def train_fn(train_loader, model, criterion, optimizer, config, device):
-    assert hasattr(config, "apex"), "Please create apex(bool) attribute"
+def train_fn(train_loader, model, criterion, optimizer, scheduler, config, device):
     assert hasattr(config, "gradient_accumulation_steps"), "Please create gradient_accumulation_steps(int default=1) attribute"
+    assert hasattr(config, "apex"), "Please create apex(bool default=False) attribute"
+    assert hasattr(config, "batch_scheduler"), "Please create batch_scheduler(bool default=False) attribute"
 
     model.train()
-    if config.apex:
-        scaler = GradScaler()
+    scaler = GradScaler(enabled=config.apex)
     losses = AverageMeter()
-    for step, (input_ids, attention_mask, target) in enumerate(train_loader):
-        input_ids = input_ids.to(device)
-        attention_mask = attention_mask.to(device)
-        target = target.to(device)
-        batch_size = target.size(0)
-        if config.apex:
-            with autocast():
-                y_preds = model(ids=input_ids, mask=attention_mask)
-                loss = criterion(y_preds.view(-1), target)
-        else:
-            y_preds = model(ids=input_ids, mask=attention_mask)
-            loss = criterion(y_preds.view(-1), target)
-        # record loss
-        losses.update(loss.item(), batch_size)
+    for step, (inputs, mask, labels) in enumerate(train_loader):
+        inputs = inputs.to(device)
+        mask = mask.to(device)
+        labels = labels.to(device)
+        batch_size = labels.size(0)
+        with torch.cuda.amp.autocast(enabled=config.apex):
+            y_preds = model(inputs, mask)
+        loss = criterion(y_preds.view(-1, 1), labels.view(-1, 1))
         if config.gradient_accumulation_steps > 1:
             loss = loss / config.gradient_accumulation_steps
+        losses.update(loss.item(), batch_size)
         if config.apex:
             scaler.scale(loss).backward()
         else:
             loss.backward()
-
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.max_grad_norm)
         if (step + 1) % config.gradient_accumulation_steps == 0:
             if config.apex:
                 scaler.step(optimizer)
@@ -47,31 +42,71 @@ def train_fn(train_loader, model, criterion, optimizer, config, device):
             else:
                 optimizer.step()
             optimizer.zero_grad()
+            if config.batch_scheduler:
+                scheduler.step()
+        del loss
+        gc.collect()
     return losses.avg
 
 
 def valid_fn(model, criterion, valid_dataloader, config, device):
     assert hasattr(config, "gradient_accumulation_steps"), "Please create gradient_accumulation_steps(int default=1) attribute"
-    model.eval()
     losses = AverageMeter()
+    model.eval()
     preds = []
-    all_targets = []
-
-    for step, (input_ids, attention_mask, targets) in enumerate(valid_dataloader):
-        input_ids = input_ids.to(device)
+    for step, (inputs, attention_mask, labels) in enumerate(valid_dataloader):
+        labels = labels.to(device)
+        inputs = inputs.to(device)
         attention_mask = attention_mask.to(device)
-        targets = targets.to(device)
-        batch_size = targets.size(0)
+        batch_size = labels.size(0)
         with torch.no_grad():
-            y_preds = model(ids=input_ids, mask=attention_mask)
-        loss = criterion(y_preds.view(-1), targets)
-        losses.update(loss.item(), batch_size)
-        preds.append(y_preds.to('cpu').numpy())
-        all_targets.append(targets.detach().cpu().numpy())
+            y_preds = model(inputs, attention_mask)
+        loss = criterion(y_preds.view(-1, 1), labels.view(-1, 1))
         if config.gradient_accumulation_steps > 1:
             loss = loss / config.gradient_accumulation_steps
-        del loss
-        gc.collect()
+        losses.update(loss.item(), batch_size)
+        preds.append(y_preds.sigmoid().to('cpu').numpy())
     predictions = np.concatenate(preds)
-    all_labels = np.concatenate(all_targets)
-    return losses.avg, predictions, all_labels
+    predictions = np.concatenate(predictions)
+    return losses.avg, predictions
+
+
+def inference_fn(test_loader, model, device, config):
+    assert hasattr(config, "n_fold"), "Please create n_fold(int usually 5) attribute"
+    assert hasattr(config, "trn_fold"), "Please create trn_fold(list[int] '[0, 1, 2, 3, 4]') attribute"
+    assert hasattr(config, "model_dir"), "Please create model_dir(string './') attribute"
+    assert hasattr(config, "model_name"), "Please create model_name(string, 'roberta-base') attribute"
+    assert hasattr(config, "input_dir"), "Please create input_dir(string './') attribute"
+    assert hasattr(config, "target_col"), "Please create target_col(string 'target') attribute"
+
+    def inference(test_loader, model, device):
+        preds = []
+        model.eval()
+        model.to(device)
+        tk0 = tqdm(test_loader, total=len(test_loader))
+        for (inputs, mask) in tk0:
+            inputs = inputs.to(device)
+            mask = mask.to(device)
+            with torch.no_grad():
+                y_preds = model(inputs, mask)
+            preds.append(y_preds.sigmoid().to('cpu').numpy())
+        predictions = np.concatenate(preds)
+        return predictions
+
+    final_pred = []
+    for fold in range(config.n_fold):
+        if fold in config.trn_fold:
+            state = torch.load(config.model_dir + f"/{config.model_name}_fold{fold + 1}_best.pth", map_location=torch.device('cpu'))['model']
+            model.load_state_dict(state)
+            model.to(device)
+            preds = inference(test_loader, model, device)
+            final_pred.append(preds)
+            del state
+            gc.collect()
+            torch.cuda.empty_cache()
+
+    final_pred = np.mean(np.column_stack(final_pred), axis=1)
+    sub_df = pd.read_csv(config.input_dir + "sample_submission.csv")
+    sub_df[config.target_col] = final_pred
+    sub_df.to_csv(config.model_dir + "submission.csv", index=False)
+    display(sub_df.head())

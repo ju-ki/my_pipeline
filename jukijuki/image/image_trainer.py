@@ -48,6 +48,8 @@ def train_fn(train_loader, model, criterion, optimizer, config, device):
             else:
                 optimizer.step()
             optimizer.zero_grad()
+        del loss
+        gc.collect()
     return losses.avg
 
 

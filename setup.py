@@ -29,7 +29,7 @@ setup(
     version=get_version(),
     author="jukiya",
     include_package_data=True,
-    description="This is pipeline for me",
+    description="This is pipeline for tabular, nlp, image competition",
     long_description=README,
     long_description_content_type='text/markdown',
     author_email="juki.programming@gmail.com",
