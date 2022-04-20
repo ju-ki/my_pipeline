@@ -1,17 +1,13 @@
 import os
-import nltk
 import torch
 import hashlib
 import numpy as np
 import pandas as pd
-import fasttext
-import texthero as hero
 import transformers
 from transformers import BertTokenizer
 import tensorflow as tf
 import tensorflow_text
 import tensorflow_hub as hub
-from nltk.util import ngrams
 from tqdm.auto import tqdm
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
@@ -33,7 +29,7 @@ class StringLengthBlock(AbstractBaseBlock):
         return out_df.add_prefix('string_length_')
 
 
-class GetCountWord(AbstractBaseBlock):
+class GetCountWordBlock(AbstractBaseBlock):
     """単語数を取得するブロック"""
 
     def __init__(self, cols: str, text_normalize=None):
@@ -48,96 +44,6 @@ class GetCountWord(AbstractBaseBlock):
         out_df[self.cols] = _input_df[self.cols].fillna("NaN").apply(
             lambda x: len(x.split()))
         return out_df.add_prefix("count_word_")
-
-
-def cleansing_hero_text(text_col):
-    """
-    Stopwords抜きの関数
-    """
-    custom_pipeline = [
-                   hero.preprocessing.remove_whitespace,
-                   hero.preprocessing.drop_no_content,
-                   hero.preprocessing.fillna,
-                   hero.preprocessing.remove_diacritics,
-                   hero.preprocessing.remove_digits,
-                   hero.preprocessing.remove_html_tags,
-                   hero.preprocessing.remove_urls,
-                   hero.preprocessing.remove_brackets,
-                   hero.preprocessing.remove_punctuation,
-                   hero.preprocessing.stem]
-    texts = hero.clean(text_col, custom_pipeline)
-    return texts
-
-
-def cleansing_hero_text_and_stopwords(text_col):
-    """
-    stopwordsを含む
-    """
-    custom_pipeline = [
-                   hero.preprocessing.remove_whitespace,
-                   hero.preprocessing.drop_no_content,
-                   hero.preprocessing.fillna,
-                   hero.preprocessing.remove_diacritics,
-                   hero.preprocessing.remove_digits,
-                   hero.preprocessing.remove_html_tags,
-                   hero.preprocessing.remove_urls,
-                   hero.preprocessing.remove_brackets,
-                   hero.preprocessing.remove_punctuation,
-                   hero.preprocessing.stem,
-                   hero.preprocessing.remove_stopwords]
-    texts = hero.clean(text_col, custom_pipeline)
-    return texts
-
-
-def line_ngram(line, n=2):
-    words = [w for w in line.split(' ') if len(w) != 0]
-    return list(ngrams(words, n))
-
-
-def create_n_gram(x, n=3):
-    x = cleansing_hero_text(x)
-    x = pd.Series(x).map(lambda r: line_ngram(r, n=n))
-    return x
-
-
-class NameNGramBlock(AbstractBaseBlock):
-    def __init__(self, whole_df, cols, n=3):
-        self.whole_df = whole_df
-        self.cols = cols
-        self.n = n
-
-    def fit(self, input_df, y=None):
-        name_grams = create_n_gram(self.whole_df[self.cols], n=self.n)
-        grams = [x for row in name_grams for x in row if len(x) > 0]
-        top_grams = pd.Series(grams).value_counts().head(20).index
-
-        self.top_grams_ = top_grams
-        return self.transform(input_df)
-
-    def transform(self, input_df):
-        name_grams = create_n_gram(input_df[self.cols], n=self.n)
-        output_df = pd.DataFrame()
-
-        for top in self.top_grams_:
-            s_top = '-'.join(top)
-            output_df[f'{s_top}'] = name_grams.map(lambda x: top in x).map(int)
-
-        return output_df.add_prefix('Name_has_').add_suffix(f'_n={self.n}')
-
-
-def text_normalization(text):
-    custom_stopwords = nltk.corpus.stopwords.words('english')
-
-    x = hero.clean(text, pipeline=[
-        hero.preprocessing.fillna,
-        hero.preprocessing.lowercase,
-        hero.preprocessing.remove_digits,
-        hero.preprocessing.remove_punctuation,
-        hero.preprocessing.remove_diacritics,
-        lambda x: hero.preprocessing.remove_stopwords(x, stopwords=custom_stopwords)
-    ])
-
-    return x
 
 
 class TfidfBlock(AbstractBaseBlock):
@@ -169,7 +75,7 @@ class TfidfBlock(AbstractBaseBlock):
 
     def preprocess(self, input_df):
         if self.text_normalize:
-            x = text_normalization(input_df[self.cols])
+            x = self.text_normalize(input_df[self.cols])
         else:
             x = input_df[self.cols].fillna("")
         return x
@@ -216,7 +122,7 @@ class BM25Block(AbstractBaseBlock):
 
     def preprocess(self, input_df):
         if self.text_normalize:
-            x = text_normalization(input_df[self.cols])
+            x = self.text_normalize(input_df[self.cols])
         else:
             x = input_df[self.cols].fillna("")
         return x
@@ -255,7 +161,7 @@ class Doc2VecBlock(AbstractBaseBlock):
 
     def preprocess(self, input_df):
         if self.text_normalize:
-            x = text_normalization(input_df[self.cols])
+            x = self.text_normalize(input_df[self.cols])
         else:
             x = input_df[self.cols].fillna("NaN")
         return x
@@ -651,7 +557,7 @@ def tokenizer(x: str):
     return x.split()
 
 
-class GetLanguageLabel(AbstractBaseBlock):
+class GetLanguageLabelBlock(AbstractBaseBlock):
     """
     言語判定するブロック
     """

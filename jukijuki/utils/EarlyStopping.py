@@ -3,15 +3,16 @@ import torch
 
 class EarlyStopping:
 
-    def __init__(self, patience=2, logger=None):
+    def __init__(self, patience=2, logger=None, minimize=False):
         self.patience = patience
         self.counter = 0
         self.best_score = None
         self.stop = False
         self.logger = logger
+        self.minimize = minimize
 
-    def __call__(self, loss, model, preds, path, minimize=True):
-        if minimize:
+    def __call__(self, loss, model, preds, path):
+        if self.minimize:
             if self.best_score is None:
                 self.best_score = loss
                 self.save_checkpoint(model, preds, path)
@@ -31,7 +32,7 @@ class EarlyStopping:
                 self.save_checkpoint(model, preds, path)
             elif loss > self.best_score:
                 self.logger.info(
-                    f'Loss increased {self.best_score:.5f} --> {loss:.5f}')
+                    f'Score increased {self.best_score:.5f} --> {loss:.5f}')
                 self.best_score = loss
                 self.counter = 0
                 self.save_checkpoint(model, preds, path)
