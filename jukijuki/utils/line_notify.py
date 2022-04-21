@@ -1,7 +1,7 @@
 import requests
 
 
-def send_line_notification(message: str, token: str, env: str):
+def send_line_notification(message: str, token: str, config = None):
     """[summary]
 
     Args:
@@ -9,6 +9,12 @@ def send_line_notification(message: str, token: str, env: str):
         token ([string]): [your line token]
         env ([string]): [set your environment (example:Kaggle Colab Local)]
     """
+    if config.IN_COLAB:
+        env = "colab"
+    elif config.IN_KAGGLE:
+        env = "kaggle"
+    elif config.IN_LOCAL:
+        env = "local"
     line_token = token
     endpoint = 'https://notify-api.line.me/api/notify'
     message = f"[{env}]{message}"
