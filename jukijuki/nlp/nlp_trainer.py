@@ -19,7 +19,8 @@ def train_fn(train_loader, model, criterion, optimizer, scheduler, config, devic
     model.train()
     scaler = GradScaler(enabled=config.apex)
     losses = AverageMeter()
-    for step, (inputs, mask, labels) in enumerate(train_loader):
+    tk0 = tqdm(train_loader, total=len(train_loader))
+    for step, (inputs, mask, labels) in enumerate(tk0):
         inputs = inputs.to(device)
         mask = mask.to(device)
         labels = labels.to(device)
@@ -49,12 +50,13 @@ def train_fn(train_loader, model, criterion, optimizer, scheduler, config, devic
     return losses.avg
 
 
-def valid_fn(model, criterion, valid_dataloader, config, device):
+def valid_fn(model, criterion, valid_loader, config, device):
     assert hasattr(config, "gradient_accumulation_steps"), "Please create gradient_accumulation_steps(int default=1) attribute"
     losses = AverageMeter()
     model.eval()
     preds = []
-    for step, (inputs, attention_mask, labels) in enumerate(valid_dataloader):
+    tk0 = tqdm(valid_loader, total=len(valid_loader))
+    for step, (inputs, attention_mask, labels) in enumerate(tk0):
         labels = labels.to(device)
         inputs = inputs.to(device)
         attention_mask = attention_mask.to(device)
