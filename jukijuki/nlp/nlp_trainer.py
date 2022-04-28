@@ -76,9 +76,10 @@ def valid_fn(model, criterion, valid_loader, config, device):
 def inference_fn(test_loader, model, device, config):
     assert hasattr(config, "n_fold"), "Please create n_fold(int usually 5) attribute"
     assert hasattr(config, "trn_fold"), "Please create trn_fold(list[int] '[0, 1, 2, 3, 4]') attribute"
-    assert hasattr(config, "model_dir"), "Please create model_dir(string './') attribute"
+    assert hasattr(config, "exp_path"), "Please create exp_path(string '../input/exp1-{compe_name}') attribute"
     assert hasattr(config, "model_name"), "Please create model_name(string, 'roberta-base') attribute"
     assert hasattr(config, "input_dir"), "Please create input_dir(string './') attribute"
+    assert hasattr(config, "model_dir"), "Please create model_dir(string './') attribute"
     assert hasattr(config, "target_col"), "Please create target_col(string 'target') attribute"
 
     def inference(test_loader, model, device):
@@ -98,7 +99,10 @@ def inference_fn(test_loader, model, device, config):
     final_pred = []
     for fold in range(config.n_fold):
         if fold in config.trn_fold:
-            state = torch.load(config.model_dir + f"/{config.model_name}_fold{fold + 1}_best.pth", map_location=torch.device('cpu'))['model']
+            if config.IN_KAGGLE:
+                state = torch.load(config.exp_path + f"{config.model_name}_fold{fold + 1}_best.pth", map_location=torch.device('cpu'))['model']
+            else:
+                state = torch.load(config.model_dir + f"{config.model_name}_fold{fold + 1}_best.pth", map_location=torch.device('cpu'))['model']
             model.load_state_dict(state)
             model.to(device)
             preds = inference(test_loader, model, device)
