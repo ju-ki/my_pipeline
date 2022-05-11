@@ -11,7 +11,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.AverageMeter import AverageMeter
 
 
-def train_fn(train_loader, model, criterion, optimizer, scheduler, config, device):
+def train_fn(train_loader, model, criterion, optimizer, scheduler, config, device, empty_cache=False):
     assert hasattr(config, "gradient_accumulation_steps"), "Please create gradient_accumulation_steps(int default=1) attribute"
     assert hasattr(config, "apex"), "Please create apex(bool default=False) attribute"
     assert hasattr(config, "batch_scheduler"), "Please create batch_scheduler(bool default=False) attribute"
@@ -46,6 +46,8 @@ def train_fn(train_loader, model, criterion, optimizer, scheduler, config, devic
             if config.batch_scheduler:
                 scheduler.step()
         del loss
+        if empty_cache:
+            torch.cuda.empty_cache()
         gc.collect()
     return losses.avg
 

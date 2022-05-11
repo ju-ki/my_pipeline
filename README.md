@@ -39,7 +39,6 @@ from jukijuki.utils.timer import Timer
 from jukijuki.utils.logger import Logger
 from jukijuki.utils.EarlyStopping import EarlyStopping
 from jukijuki.utils.util import create_folder, seed_everything, get_device
-from jukijuki.validation.SturgesRuleStratifiedKFold import sturges_skf
 from jukijuki.pytorch_model.util import get_optimizer, get_scheduler
 
 class Config:
@@ -64,6 +63,9 @@ class Config:
     trn_fold = [0, 1, 2, ,3, 4]
     seed = 42
     target_size = 1
+    TRAIN = True
+    INFERENCE = False
+    DEBUG = True
 
 create_folder(Config)
 seed_everything(Config.seed)
@@ -74,12 +76,11 @@ logger = Logger(Config.log_dir, Config.exp_name)
 
 ### Set up environment for nlp competition
 ```python
-from jukijuki.nlp.util import get_tokenizer
+from jukijuki.nlp.util import get_tokenizer, get_max_lengths
 from jukijuki.utils.timer import Timer
 from jukijuki.utils.logger import Logger
 from jukijuki.utils.EarlyStopping import EarlyStopping
 from jukijuki.utils.util import create_folder, seed_everything, get_device
-from jukijuki.validation.SturgesRuleStratifiedKFold import sturges_skf
 from jukijuki.pytorch_model.util import get_optimizer, get_scheduler
 
 class Config:
@@ -106,6 +107,9 @@ class Config:
     seed = 42
     target_size = 1
     batch_scheduler = True
+    TRAIN = True
+    INFERENCE = False
+    DEBUG = True
 
 create_folder(Config)
 seed_everything(Config.seed)
