@@ -165,3 +165,137 @@ class ClsEmbeddingModel(nn.Module):
         feature = self.feature(ids, mask)
         output = self.fc(self.fc_dropout(feature))
         return output
+
+
+class Second2LastLayerModel(nn.Module):
+    def __init__(self, config, pretrained=False):
+        super().__init__()
+        self.config = config
+        self.pretrained = pretrained
+        if self.config.TRAIN:
+            self.model_config = AutoConfig.from_pretrained(self.config.model_name, output_hidden_states=True)
+        else:
+            self.model_config = AutoConfig.from_pretrained(self.config.model_path, output_hidden_states=True)
+        if pretrained:
+            self.model = AutoModel.from_pretrained(self.config.model_name, config=self.model_config)
+        else:
+            self.model = AutoModel.from_config(self.model_config)
+        self.in_feautres = self.model_config.hidden_size
+        self.fc_dropout = nn.Dropout(self.config.dropout_rate)
+        self.fc = nn.Linear(self.model_config.hidden_size, self.config.target_size)
+        self._init_weights(self.fc)
+        
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=self.model_config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.model_config.initializer_range)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+        
+    def feature(self, ids, mask):
+        outputs = self.model(ids, mask)
+        all_hidden_states = torch.stack(outputs[1])
+        layer_index = 11
+        feature = all_hidden_states[layer_index+1, :, 0]
+        return feature
+
+    def forward(self, ids, mask):
+        feature = self.feature(ids, mask)
+        output = self.fc(self.fc_dropout(feature))
+        return output
+
+
+class ConcatenatePoolingModel(nn.Module):
+    def __init__(self, config, pretrained=False):
+        super().__init__()
+        self.config = config
+        self.pretrained = pretrained
+        if self.config.TRAIN:
+            self.model_config = AutoConfig.from_pretrained(self.config.model_name, output_hidden_states=True)
+        else:
+            self.model_config = AutoConfig.from_pretrained(self.config.model_path, output_hidden_states=True)
+        if pretrained:
+            self.model = AutoModel.from_pretrained(self.config.model_name, config=self.model_config)
+        else:
+            self.model = AutoModel.from_config(self.model_config)
+        self.in_feautres = self.model_config.hidden_size
+        self.fc_dropout = nn.Dropout(self.config.dropout_rate)
+        self.fc = nn.Linear(self.model_config.hidden_size * 4, self.config.target_size)
+        self._init_weights(self.fc)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=self.model_config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.model_config.initializer_range)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+
+    def feature(self, ids, mask):
+        outputs = self.model(ids, mask)
+        all_hidden_states = torch.stack(outputs[1])
+        concatenate_pooling = torch.cat((all_hidden_states[-1], all_hidden_states[-2], all_hidden_states[-3], all_hidden_states[-4]),-1)
+        feature = concatenate_pooling[:, 0]
+        return feature
+
+    def forward(self, ids, mask):
+        feature = self.feature(ids, mask)
+        output = self.fc(self.fc_dropout(feature))
+        return output
+
+
+class CNNPoolingModel(nn.Module):
+    def __init__(self, config, pretrained=False):
+        super().__init__()
+        self.config = config
+        self.pretrained = pretrained
+        if self.config.TRAIN:
+            self.model_config = AutoConfig.from_pretrained(self.config.model_name, output_hidden_states=True)
+        else:
+            self.model_config = AutoConfig.from_pretrained(self.config.model_path, output_hidden_states=True)
+        if pretrained:
+            self.model = AutoModel.from_pretrained(self.config.model_name, config=self.model_config)
+        else:
+            self.model = AutoModel.from_config(self.model_config)
+        self.in_features = self.model_config.hidden_size
+        self.cnn1 = nn.Conv1d(self.in_features, 256, kernel_size=2, padding=1)
+        self.cnn2 = nn.Conv1d(256, 1, kernel_size=2, padding=1)
+        self.fc_dropout = nn.Dropout(self.config.dropout_rate)
+        self.fc = nn.Linear(self.model_config.hidden_size, self.config.target_size)
+        self._init_weights(self.fc)
+        
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=self.model_config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.model_config.initializer_range)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+        
+    def feature(self, ids, mask):
+        outputs = self.model(ids, mask)
+        last_hidden_state = outputs[0].permute(0, 2, 1)
+        return last_hidden_state
+
+    def forward(self, ids, mask):
+        feature = self.feature(ids, mask)
+        cnn_embeddings = F.relu(self.cnn1(feature))
+        cnn_embeddings = self.cnn2(cnn_embeddings)
+        output, _ = torch.max(cnn_embeddings, 2)
+        return output
