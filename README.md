@@ -81,6 +81,7 @@ from jukijuki.utils.timer import Timer
 from jukijuki.utils.logger import Logger
 from jukijuki.utils.EarlyStopping import EarlyStopping
 from jukijuki.utils.util import create_folder, seed_everything, get_device
+from jukijuki.nlp.pooler import AttentionPoolingV1, MeanPoolingV1
 from jukijuki.pytorch_model.util import get_optimizer, get_scheduler
 
 class Config:
@@ -94,8 +95,9 @@ class Config:
     max_len = 250
     epochs = 8
     model_name = "roberta-base"
+    pool_name = "attention"
     optimizer_name = "AdamW"
-    scheduler = "CosineAnnealingLR"
+    scheduler = "cosine"
     T_max = epochs
     lr = 1e-4
     min_lr = 1e-6
