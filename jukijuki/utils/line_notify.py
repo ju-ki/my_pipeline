@@ -1,7 +1,7 @@
 import requests
 
 
-def send_line_notification(message: str, token: str, config = None):
+def send_line_notification(message: str, path: str, config=None):
     """[summary]
 
     Args:
@@ -15,7 +15,8 @@ def send_line_notification(message: str, token: str, config = None):
         env = "kaggle"
     elif config.IN_LOCAL:
         env = "local"
-    line_token = token
+    with open(path, "r") as f:
+        line_token = f.readline()
     endpoint = 'https://notify-api.line.me/api/notify'
     message = f"[{env}]{message}"
     payload = {'message': message}
