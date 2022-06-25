@@ -22,7 +22,7 @@ class MaxPoolingV1(nn.Module):
 
     def forward(self, last_hidden_states, mask):
         input_mask_expanded = mask.unsqueeze(-1).expand(last_hidden_states.size()).float()
-        last_hidden_states[input_mask_expanded == 0] = -1e9  # Set padding tokens to large negative value
+        last_hidden_states[input_mask_expanded == 0] = -1e9
         max_embeddings = torch.max(last_hidden_states, 1)[0]
         return max_embeddings
 
@@ -89,7 +89,7 @@ class ConcatenatePoolingV1(nn.Module):
 
 
 class WeightedLayerPooling(nn.Module):
-    def __init__(self, num_hidden_layers, layer_start: int = 4, layer_weights = None):
+    def __init__(self, num_hidden_layers, layer_start: int = 4, layer_weights=None):
         super(WeightedLayerPooling, self).__init__()
         self.layer_start = layer_start
         self.num_hidden_layers = num_hidden_layers
@@ -112,7 +112,7 @@ class WeightedLayerPoolingV1(nn.Module):
         self.layer_start = layer_start
         self.layer_weights = layer_weights
         self.pooler = WeightedLayerPooling(num_hidden_layers=self.num_hidden_layer, layer_start=self.layer_start, layer_weights=self.layer_weights)
- 
+
     def forward(self, hidden_states):
         weighted_pooling_embeddings = self.pooler(hidden_states)
         weighted_pooling_embeddings = weighted_pooling_embeddings[:, 0]
@@ -153,12 +153,12 @@ class AttentionPool(nn.Module):
 
 
 class AttentionPoolingV1(nn.Module):
-    def __init__(self,):
+    def __init__(self, dim1, dim2):
         super(AttentionPoolingV1, self).__init__()
         self.attention = nn.Sequential(
-            nn.Linear(self.config.hidden_size, 512),
+            nn.Linear(dim1, dim2),
             nn.Tanh(),
-            nn.Linear(512, 1),
+            nn.Linear(dim2, 1),
             nn.Softmax(dim=1)
         )
         self._init_weights(self.attention)

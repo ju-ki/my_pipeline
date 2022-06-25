@@ -137,18 +137,27 @@ class BaseModel(object):
     def load(self, filepath: str, model_name: str):
         self.model = Util.load(filepath + model_name + ".pkl")
 
-    def make_oof(self):
+    def make_oof(self, mode="csv"):
         self.oof_df = pd.DataFrame({
             "oof": self.oof
         })
-        return Util.save_csv(self.oof_df, self.output_dir, self.name + "oof")
+        if mode == "csv":
+            Util.save_csv(self.oof_df, self.output_dir, self.name + "oof")
+        elif mode == "pickle":
+            Util.save_pickle(self.oof_df, self.output_dir, self.name + "oof")
+        elif mode == "parquet":
+            Util.save_parquet(self.oof_df, self.output_dir, self.name + "oof")
+        elif mode == "npy":
+            Util.save_npy(self.oof, self.output_dir, self.name + "oof")
+        return self.oof_df
 
     def make_submission(self,  is_logarithm=False):
         self.sub_df = pd.DataFrame()
         if is_logarithm:
             self.preds = np.expm1(self.preds)
         self.sub_df["target"] = self.preds
-        return Util.save_csv(self.sub_df, self.output_dir,  self.name + "sub")
+        Util.save_csv(self.sub_df, self.output_dir,  self.name + "sub")
+        return self.sub_df
 
     def plot_oof_pred_target(self):
         sns.set()

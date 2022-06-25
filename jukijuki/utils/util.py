@@ -22,22 +22,45 @@ class Util:
         df.to_csv(path + name + ".csv", index=False)
 
     @classmethod
-    def dump_df(cls, df, path, is_pickle=False):
-        if is_pickle:
-            df.to_pickle(path)
-        else:
-            df.to_csv(path, index=False)
+    def load_csv(cls, path, name):
+        return pd.read_csv(path + name + ".csv")
 
     @classmethod
-    def load_df(cls, path, is_pickle=False):
-        if is_pickle:
-            return pd.read_pickle(path)
-        else:
-            return pd.read_csv(path)
+    def save_pickle(cls, df, path, name):
+        df.to_pickle(path, name + ".pkl")
+
+    @classmethod
+    def load_pickle(cls, path, name):
+        return pd.read_pickle(path + name + ".pkl")
+
+    @classmethod
+    def save_parquet(cls, df, path, name):
+        df.to_parquet(path + name + ".parquet")
+
+    @classmethod
+    def load_parquet(cls, path, name):
+        return pd.read_parquet(path + name + ".parquet")
+
+    @classmethod
+    def save_npy(cls, arr, path, name):
+        np.save(path + name + ".npy", arr)
+
+    @classmethod
+    def load_npy(cls, path, name):
+        return np.load(path + name + ".npy")
+
+    @classmethod
+    def save_feather(cls, df, path, name):
+        df.to_feather(path + name + ".feather")
+
+    @classmethod
+    def load_feather(cls, path, name):
+        return pd.read_feather(path + name + ".feather")
 
 
 def get_device():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Device:", device)
     return device
 
 
@@ -108,10 +131,6 @@ def create_folder(Config):
                 os.makedirs(d, exist_ok=True)
             else:
                 print(f"{name}: already created{d}")
-        file_name = os.path.join(Config.log_dir, Config.exp_name + ".log")
-        if os.path.isfile(file_name):
-            os.remove(file_name)
-            print(f"recreate {Config.exp_name}.log file")
     elif Config.IN_KAGGLE:
         Config.input_dir = f"../input/{Config.competition_name}/"
         Config.output_dir = "./"
