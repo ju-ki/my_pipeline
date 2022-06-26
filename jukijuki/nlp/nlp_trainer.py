@@ -20,14 +20,14 @@ def train_fn(train_loader, model, criterion, optimizer, scheduler, config, devic
     scaler = GradScaler(enabled=config.apex)
     losses = AverageMeter()
     tk0 = tqdm(train_loader, total=len(train_loader))
-    for step, (inputs, mask, labels) in enumerate(tk0):
-        inputs = inputs.to(device)
-        mask = mask.to(device)
-        labels = labels.to(device)
+    for step, batch in enumerate(tk0):
+        inputs = batch["input_ids"].to(device)
+        mask = batch["attention_mask"].to(device)
+        labels = batch["target"].to(device)
         batch_size = labels.size(0)
         with torch.cuda.amp.autocast(enabled=config.apex):
             y_preds = model(inputs, mask)
-        loss = criterion(y_preds.view(-1, 1), labels.view(-1, 1))
+        loss = criterion(y_preds, labels)
         if config.gradient_accumulation_steps > 1:
             loss = loss / config.gradient_accumulation_steps
         losses.update(loss.item(), batch_size)
@@ -58,14 +58,14 @@ def valid_fn(model, criterion, valid_loader, config, device):
     model.eval()
     preds = []
     tk0 = tqdm(valid_loader, total=len(valid_loader))
-    for step, (inputs, attention_mask, labels) in enumerate(tk0):
-        labels = labels.to(device)
-        inputs = inputs.to(device)
-        attention_mask = attention_mask.to(device)
+    for step, batch in enumerate(tk0):
+        inputs = batch["input_ids"].to(device)
+        mask = batch["attention_mask"].to(device)
+        labels = batch["target"].to(device)
         batch_size = labels.size(0)
         with torch.no_grad():
-            y_preds = model(inputs, attention_mask)
-        loss = criterion(y_preds.view(-1, 1), labels.view(-1, 1))
+            y_preds = model(inputs, mask)
+        loss = criterion(y_preds, labels)
         if config.gradient_accumulation_steps > 1:
             loss = loss / config.gradient_accumulation_steps
         losses.update(loss.item(), batch_size)
@@ -78,7 +78,6 @@ def valid_fn(model, criterion, valid_loader, config, device):
 def inference_fn(test_loader, model, device, config):
     assert hasattr(config, "n_fold"), "Please create n_fold(int usually 5) attribute"
     assert hasattr(config, "trn_fold"), "Please create trn_fold(list[int] '[0, 1, 2, 3, 4]') attribute"
-    assert hasattr(config, "exp_path"), "Please create exp_path(string '../input/exp1-{compe_name}') attribute"
     assert hasattr(config, "model_name"), "Please create model_name(string, 'roberta-base') attribute"
     assert hasattr(config, "input_dir"), "Please create input_dir(string './') attribute"
     assert hasattr(config, "model_dir"), "Please create model_dir(string './') attribute"
