@@ -17,17 +17,16 @@ class SimpleTrainDataset(Dataset):
 
     def __getitem__(self, idx):
         sentence = self.sentence[idx]
-        bert_sentence = self.tokenizer(
+        bert_sentence = self.tokenizer.encode_plus(
             text=sentence,
             add_special_tokens=True,
             max_length=self.config.max_len,
-            padding="max_length",
-            truncation=True,
-            return_attention_mask=True)
-        input_ids = torch.tensor(bert_sentence["input_ids"], dtype=torch.long)
-        attention_mask = torch.tensor(bert_sentence["attention_mask"], dtype=torch.long)
-        target = torch.tensor(self.target[idx], dtype=torch.float)
-        return input_ids, attention_mask, target
+            truncation=True,)
+        return {
+            'input_ids': torch.tensor(bert_sentence["input_ids"], dtype=torch.long),
+            'attention_mask': torch.tensor(bert_sentence["attention_mask"], dtype=torch.long),
+            'target': torch.tensor(self.target[idx], dtype=torch.long)
+        }
 
 
 class SimpleTestDataset(Dataset):
@@ -43,7 +42,7 @@ class SimpleTestDataset(Dataset):
 
     def __getitem__(self, idx):
         sentence = self.sentence[idx]
-        bert_sentence = self.tokenizer(
+        bert_sentence = self.tokenizer.encode_plus(
             text=sentence,
             add_special_tokens=True,
             max_length=self.config.max_len,

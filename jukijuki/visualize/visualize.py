@@ -29,7 +29,8 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     # Compute confusion matrix
     cm = confusion_matrix(y_true, y_pred)
     # Only use the labels that appear in the data
-    classes = classes[unique_labels(y_true, y_pred)]
+    if classes is None:
+        classes = classes[unique_labels(y_true, y_pred)]
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         print("Normalized confusion matrix")
@@ -165,7 +166,7 @@ def create_top_ngram_word_plot(input_df: pd.DataFrame, col: str, n=20, stop_word
         plot_freq_word(bigram_df, n=n, name="bigram")
         print("***" * 40)
         trigram_df = get_top_n_trigram(
-            input_df[col]fillna("NaN"), n=n, stop_words=stop_words)
+            input_df[col].fillna("NaN"), n=n, stop_words=stop_words)
         plot_freq_word(trigram_df, n=n, name="trigram")
 
 
