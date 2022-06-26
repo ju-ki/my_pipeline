@@ -27,7 +27,7 @@ class Util:
 
     @classmethod
     def save_pickle(cls, df, path, name):
-        df.to_pickle(path, name + ".pkl")
+        df.to_pickle(path + name + ".pkl")
 
     @classmethod
     def load_pickle(cls, path, name):
