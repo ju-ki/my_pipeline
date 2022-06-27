@@ -5,14 +5,14 @@ def get_token(config, use_line=True, use_wandb=False):
     line_token = ""
     wandb_token = ""
     if config.IN_KAGGLE:
-        path = "../input/my_token/"
+        path = "../input/my-token/"
     elif config.IN_COLAB:
         path = "/content/drive/MyDrive/jukiya/"
     if use_line:
         with open(path+"line_token.txt", "r") as f:
             line_token = f.readline()
     if use_wandb:
-        with open(path+"line_token.txt", "r") as f:
+        with open(path+"wandb_token.txt", "r") as f:
             wandb_token = f.readline()
     return line_token, wandb_token
 
