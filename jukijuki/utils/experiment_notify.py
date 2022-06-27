@@ -1,9 +1,25 @@
 import requests
 
 
+def get_token(config, use_line=True, use_wandb=False):
+    line_token = ""
+    wandb_token = ""
+    if config.IN_KAGGLE:
+        path = "../input/my_token/"
+    elif config.IN_COLAB:
+        path = "/content/drive/MyDrive/jukiya/"
+    if use_line:
+        with open(path+"line_token.txt", "r") as f:
+            line_token = f.readline()
+    if use_wandb:
+        with open(path+"line_token.txt", "r") as f:
+            wandb_token = f.readline()
+    return line_token, wandb_token
+
+
 class LineController:
-    def __init__(self, path, config):
-        self.path = path
+    def __init__(self, token, config):
+        self.token = token
         self.config = config
 
     def send_line_notification(self, message: str):
@@ -19,10 +35,8 @@ class LineController:
             env = "kaggle"
         elif self.config.IN_LOCAL:
             env = "local"
-        with open(self.path, "r") as f:
-            line_token = f.readline()
         endpoint = 'https://notify-api.line.me/api/notify'
         message = f"[{env}]{message}"
         payload = {'message': message}
-        headers = {'Authorization': 'Bearer {}'.format(line_token)}
+        headers = {'Authorization': 'Bearer {}'.format(self.token)}
         requests.post(endpoint, data=payload, headers=headers)
