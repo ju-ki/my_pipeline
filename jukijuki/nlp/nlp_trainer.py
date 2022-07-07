@@ -69,7 +69,7 @@ def valid_fn(model, criterion, valid_loader, config, device):
         if config.gradient_accumulation_steps > 1:
             loss = loss / config.gradient_accumulation_steps
         losses.update(loss.item(), batch_size)
-        preds.append(y_preds.sigmoid().to('cpu').numpy())
+        preds.append(y_preds.to('cpu').numpy())
     predictions = np.concatenate(preds)
     predictions = np.concatenate(predictions)
     return losses.avg, predictions
