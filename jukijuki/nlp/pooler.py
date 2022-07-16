@@ -7,7 +7,8 @@ class MeanPoolingV1(nn.Module):
     def __init__(self):
         super(MeanPoolingV1, self).__init__()
 
-    def forward(self, last_hidden_states, mask):
+    def forward(self, outputs, mask=None):
+        last_hidden_states = outputs[0]
         input_mask_expanded = mask.unsqueeze(-1).expand(last_hidden_states.size()).float()
         sum_embeddings = torch.sum(last_hidden_states * input_mask_expanded, 1)
         sum_mask = input_mask_expanded.sum(1)
@@ -20,7 +21,8 @@ class MaxPoolingV1(nn.Module):
     def __init__(self):
         super(MaxPoolingV1, self).__init__()
 
-    def forward(self, last_hidden_states, mask):
+    def forward(self, outputs, mask=None):
+        last_hidden_states = outputs[0]
         input_mask_expanded = mask.unsqueeze(-1).expand(last_hidden_states.size()).float()
         last_hidden_states[input_mask_expanded == 0] = -1e9
         max_embeddings = torch.max(last_hidden_states, 1)[0]
@@ -31,7 +33,8 @@ class MeanMaxPoolingV1(nn.Module):
     def __init__(self):
         super(MeanMaxPoolingV1, self).__init__()
 
-    def forward(self, last_hidden_states):
+    def forward(self, outputs, mask=None):
+        last_hidden_states = outputs[0]
         mean_pooling_embeddings = torch.mean(last_hidden_states, 1)
         _, max_pooling_embeddings = torch.max(last_hidden_states, 1)
         mean_max_embeddings = torch.cat((mean_pooling_embeddings, max_pooling_embeddings), 1)
@@ -55,7 +58,8 @@ class CNNPoolingV1(nn.Module):
     def __init__(self):
         super(CNNPoolingV1, self).__init__()
 
-    def forward(self, last_hidden_states):
+    def forward(self, outputs, mask=None):
+        last_hidden_states = outputs[0]
         last_hidden_states = last_hidden_states.permute(0, 2, 1)
         return last_hidden_states
 
@@ -64,7 +68,8 @@ class CLSEmbeddingPoolingV1(nn.Module):
     def __init__(self):
         super(CLSEmbeddingPoolingV1, self).__init__()
 
-    def forward(last_hidden_states):
+    def forward(self, outputs, mask=None):
+        last_hidden_states = outputs[0]
         return last_hidden_states[:, 0]
 
 
@@ -73,7 +78,8 @@ class SecondToLastPoolingV1(nn.Module):
         super(SecondToLastPoolingV1, self).__init__()
         self.layer_index = layer_index
 
-    def forward(self, hidden_states):
+    def forward(self, outputs, mask=None):
+        hidden_states = torch.stack(outputs["hidden_states"])
         cls_embeddings = hidden_states[self.layer_index+1, :, 0]
         return cls_embeddings
 
@@ -83,7 +89,8 @@ class ConcatenatePoolingV1(nn.Module):
         super(ConcatenatePoolingV1, self).__init__()
         self.num = num
 
-    def forward(self, hidden_states):
+    def forward(self, outputs, mask=None):
+        hidden_states = outputs["hidden_states"]
         concatenate_pooling = torch.cat([hidden_states[-1*i][:,0] for i in range(1, self.num+1)], dim=1) 
         return concatenate_pooling
 
@@ -102,6 +109,7 @@ class WeightedLayerPooling(nn.Module):
         all_layer_embedding = all_hidden_states[self.layer_start:, :, :, :]
         weight_factor = self.layer_weights.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand(all_layer_embedding.size())
         weighted_average = (weight_factor*all_layer_embedding).sum(dim=0) / self.layer_weights.sum()
+
         return weighted_average
 
 
@@ -113,7 +121,8 @@ class WeightedLayerPoolingV1(nn.Module):
         self.layer_weights = layer_weights
         self.pooler = WeightedLayerPooling(num_hidden_layers=self.num_hidden_layer, layer_start=self.layer_start, layer_weights=self.layer_weights)
 
-    def forward(self, hidden_states):
+    def forward(self, outputs, mask=None):
+        hidden_states = torch.stack(outputs["hidden_states"])
         weighted_pooling_embeddings = self.pooler(hidden_states)
         weighted_pooling_embeddings = weighted_pooling_embeddings[:, 0]
         return weighted_pooling_embeddings
@@ -176,28 +185,33 @@ class AttentionPoolingV1(nn.Module):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
 
-    def forward(self, hidden_states):
+    def forward(self, outputs, mask=None):
+        hidden_states = outputs[0]
         weights = self.attention(hidden_states)
         feature = torch.sum(weights * hidden_states, dim=1)
         return feature
 
 
 class AttentionPoolingV2(nn.Module):
-    def __init__(self):
+    def __init__(self, in_dim):
         super(AttentionPoolingV2, self).__init__()
-        self.pooler = AttentionPool()
+        self.in_dim = in_dim
+        self.pooler = AttentionPool(self.in_dim)
 
-    def forward(self, hidden_states, mask):
+    def forward(self, outputs, mask=None):
+        hidden_states = outputs[0]
         feature = self.pooler(hidden_states, mask)
         return feature
 
 
 class AttentionPoolingV3(nn.Module):
-    def __init__(self):
+    def __init__(self, in_dim):
         super(AttentionPoolingV3, self).__init__()
-        self.pooler = AttentionPool()
+        self.in_dim = in_dim
+        self.pooler = AttentionPool(in_dim)
 
-    def forward(self, hidden_states, mask):
+    def forward(self, outputs, mask=None):
+        hidden_states = outputs[0]
         hidden_states1 = hidden_states[-1]
         hidden_states2 = hidden_states[-2]
         last_hidden_states = torch.cat((hidden_states1, hidden_states2), 2)
@@ -304,6 +318,43 @@ class WKPoolingV1(nn.Module):
         super(WKPoolingV1, self).__init__()
         self.pooler = WKPooling(layer_start=9)
 
-    def forward(self, hidden_states, mask):
+    def forward(self, outputs, mask=None):
+        hidden_states = torch.stack(outputs["hidden_states"])
         wkpooling_embeddings = self.pooler(hidden_states, mask)
         return wkpooling_embeddings
+
+
+class LSTMPoolingV1(nn.Module):
+    def __init__(self, num_layers, hidden_size, hiddendim_lstm, dropout_rate):
+        super(LSTMPoolingV1, self).__init__()
+        self.num_hidden_layers = num_layers
+        self.hidden_size = hidden_size
+        self.hiddendim_lstm = hiddendim_lstm
+        self.dropout_rate = dropout_rate
+        self.lstm = nn.LSTM(self.hidden_size, self.hiddendim_lstm, batch_first=True)
+        self.dropout = nn.Dropout(dropout_rate)
+
+    def forward(self, outputs, mask=None):
+        all_hidden_states = torch.stack(outputs["hidden_states"])
+        hidden_states = torch.stack([all_hidden_states[layer_i][:, 0].squeeze()
+                                     for layer_i in range(1, self.num_hidden_layers+1)], dim=-1)
+        hidden_states = hidden_states.view(-1, self.num_hidden_layers, self.hidden_size)
+        out, _ = self.lstm(hidden_states, None)
+        out = self.dropout(out[:, -1, :])
+        return out
+
+
+class TransformerPoolingV1(nn.Module):
+    def __init__(self, in_features, max_length, num_layers=1, nhead=8, num_targets=1):
+        super().__init__()
+        self.transformer = nn.TransformerEncoder(encoder_layer=nn.TransformerEncoderLayer(d_model=in_features,
+                                                                                          nhead=nhead),
+                                                 num_layers=num_layers)
+        self.row_fc = nn.Linear(in_features, 1)
+        self.out_features = max_length
+
+    def forward(self, outputs, mask=None):
+        last_hidden_state = outputs["last_hidden_state"]
+        out = self.transformer(last_hidden_state)
+        out = self.row_fc(out).squeeze(-1)
+        return out
